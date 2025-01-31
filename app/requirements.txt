@@ -1,0 +1,20 @@
+# Install the modules as defined in setup.py to make them available on the PYTHONPATH
+.
+
+emissor
+cltl.emissor-data[service,client]
+cltl.context[service]
+cltl.chat-ui[service]
+cltl.brain[service]
+cltl.triple_extraction[service, conversational]
+cltl.entity_linking
+cltl.reply_generation[service,llama]
+cltl.about-agent
+cltl.dialogueclassification[impl, service]
+cltl.emotionrecognition[nltk, go, service]
+
+flask
+werkzeug
+connexion[swagger-ui]
+swagger-ui-bundle
+python_dateutil

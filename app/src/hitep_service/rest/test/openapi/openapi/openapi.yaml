@@ -1,0 +1,250 @@
+openapi: 3.0.3
+info:
+  contact:
+    email: p.t.j.m.vossen@vu.nl
+  description: |-
+    REST API specification for integration of TEP components
+
+    Some useful links:
+    - [The repository](https://github.com/hi-tep/tep-rest-api)
+    - [Leolani](https://github.com/leolani)
+    - [EMISSOR](https://github.com/leolani/emissor)
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: https://swagger.io/terms/
+  title: TEP REST API
+  version: 1.0.11
+externalDocs:
+  description: Find out more about Swagger
+  url: https://swagger.io
+servers:
+- url: /
+tags:
+- externalDocs:
+    description: Scenario in the EMISSOR framework
+    url: https://github.com/leolani/emissor
+  name: scenario
+paths:
+  /scenario/current:
+    get:
+      operationId: current_scenario
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/getScenario_200_response'
+          description: The metadata of the interaction
+        "404":
+          description: There is no active interaction
+      summary: Retrieve an interaction
+      tags:
+      - scenario
+      x-openapi-router-controller: openapi.controllers.scenario_controller
+  /scenario/{scenarioId}:
+    get:
+      operationId: get_scenario
+      parameters:
+      - description: The unique identifier for the interaction
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/getScenario_200_response'
+          description: The metadata of the interaction
+        "404":
+          description: There is no such interaction stored
+      summary: Retrieve an interaction
+      tags:
+      - scenario
+      x-openapi-router-controller: openapi.controllers.scenario_controller
+    put:
+      operationId: start_scenario
+      parameters:
+      - description: The unique identifier for the interaction
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioContext'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioContext'
+          description: Successfully started an interaction
+        "403":
+          description: There is already an ongoing interaction
+      summary: Start a new interaction
+      tags:
+      - scenario
+      x-openapi-router-controller: openapi.controllers.scenario_controller
+  /scenario/{scenarioId}/gaze:
+    post:
+      description: The event marks a conscious gaze of the user on the submitted entities
+        in the painting.
+      operationId: submit_gaze
+      parameters:
+      - description: The unique identifier for the interaction
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/submitGaze_request'
+        required: true
+      responses:
+        "200":
+          description: Successfully submitted gaze information
+        "403":
+          description: The submitted scenario is not active
+      summary: Submit gaze information of the user
+      tags:
+      - gaze
+      x-openapi-router-controller: openapi.controllers.gaze_controller
+components:
+  parameters:
+    scenarioId:
+      description: The unique identifier for the interaction
+      example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+      explode: false
+      in: path
+      name: scenarioId
+      required: true
+      schema:
+        format: uuid
+        type: string
+      style: simple
+  schemas:
+    ScenarioContext:
+      description: Contextual meta-data of the interaction
+      example:
+        start: 2000-01-23T04:56:07.000+00:00
+        location: https://example.com/museum
+        end: 2000-01-23T04:56:07.000+00:00
+        id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        user: https://example.com/ontology/alice
+      properties:
+        id:
+          description: The scenario identifier
+          example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+          format: uuid
+          title: id
+          type: string
+        location:
+          description: IRI of the location where the interaction takes place
+          example: https://example.com/museum
+          title: location
+          type: string
+        user:
+          description: IRI identifying the user
+          example: https://example.com/ontology/alice
+          title: user
+          type: string
+        start:
+          description: Start date of the interaction
+          format: date-time
+          title: start
+          type: string
+        end:
+          description: Start date of the interaction
+          format: date-time
+          title: end
+          type: string
+      required:
+      - location
+      - user
+      title: ScenarioContext
+      type: object
+    BoundingBox:
+      properties:
+        bottomLeft:
+          $ref: '#/components/schemas/Coordinate'
+        topRight:
+          $ref: '#/components/schemas/Coordinate'
+      required:
+      - bottomLeft
+      - topRight
+      title: BoundingBox
+      type: object
+    Coordinate:
+      description: Pixel-Coordinates of a point in the image
+      properties:
+        x:
+          example: 1.0
+          title: x
+          type: number
+        "y":
+          example: 2.0
+          title: "y"
+          type: number
+      required:
+      - x
+      - "y"
+      title: Coordinate
+      type: object
+    getScenario_200_response:
+      example:
+        location: https://example.com/image.jpg
+        user: https://example.com/ontology/king/tubby
+      properties:
+        location:
+          description: IRI of the location.
+          example: https://example.com/image.jpg
+          title: location
+          type: string
+        user:
+          description: IRI identifying the user
+          example: https://example.com/ontology/king/tubby
+          title: user
+          type: string
+      title: getScenario_200_response
+      type: object
+    submitGaze_request:
+      properties:
+        paintaing:
+          description: IRI of the painting that is the target of the user gaze
+          example: https://example.com/image.jpg
+          title: paintaing
+          type: string
+        entity:
+          description: IRIs of the entities that are target of the user gaze
+          example: https://example.com/ontology/king-tubby
+          items:
+            type: string
+          title: entity
+          type: array
+        boundingBox:
+          $ref: '#/components/schemas/BoundingBox'
+      title: submitGaze_request
+      type: object
