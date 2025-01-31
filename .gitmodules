@@ -2,3 +2,7 @@
 	path = util
 	url = https://github.com/leolani/cltl-build.git
 	branch = main
+[submodule "app-util"]
+	path = app/util
+	url = https://github.com/leolani/cltl-build.git
+	branch = main
