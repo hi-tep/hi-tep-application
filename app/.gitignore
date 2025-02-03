@@ -142,6 +142,4 @@ py-app/resources/*
 spacy.lock
 nltk.lock
 
-/src-gen
-
 **/.DS_Store

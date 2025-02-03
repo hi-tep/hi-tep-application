@@ -70,10 +70,11 @@ clean: py-clean base-clean
 
 .PHONY: generate
 generate:
-	docker run --rm -v "${PWD}/src/hitep_generated:/local" openapitools/openapi-generator-cli generate \
+	docker run --rm -v "${PWD}/src_gen:/local" openapitools/openapi-generator-cli generate \
 		-g python-flask \
 		-i https://raw.githubusercontent.com/hi-tep/tep-rest-api/refs/heads/main/leolani-tep-api.yaml \
-		-o /local
+		-o /local \
+		--additional-properties=packageName=hitep.openapi_server
 
 
 # .PHONY: generate
