@@ -1,0 +1,591 @@
+openapi: 3.0.3
+info:
+  contact:
+    email: p.t.j.m.vossen@vu.nl
+  description: |-
+    REST API specification for integration of TEP components
+
+    Some useful links:
+    - [The repository](https://github.com/hi-tep/tep-rest-api)
+    - [Leolani](https://github.com/leolani)
+    - [EMISSOR](https://github.com/leolani/emissor)
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: https://swagger.io/terms/
+  title: TEP REST API
+  version: 1.0.11
+externalDocs:
+  description: Find out more about Swagger
+  url: https://swagger.io
+servers:
+- url: /
+tags:
+- externalDocs:
+    description: Scenario in the EMISSOR framework
+    url: https://github.com/leolani/emissor
+  name: scenario
+paths:
+  /scenario/current:
+    get:
+      description: Retrieve session metadata of the current session
+      operationId: current_scenario
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+                start: 2000-01-01T00:00:00.000+00:00
+                location: https://example.com/ontology/museum/twente
+                user: https://example.com/ontology/alice
+              schema:
+                $ref: '#/components/schemas/ScenarioContext'
+          description: The metadata of the session
+        "404":
+          description: There is no active session
+      summary: Current session metadata
+      tags:
+      - scenario
+      x-openapi-router-controller: hitep.openapi_server.controllers.scenario_controller
+  /scenario/{scenarioId}:
+    get:
+      description: Retrieve session metadata by ID
+      operationId: get_scenario
+      parameters:
+      - description: The unique identifier for the session
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+                start: 2000-01-01T00:00:00.000+00:00
+                location: https://example.com/ontology/museum/twente
+                user: https://example.com/ontology/alice
+              schema:
+                $ref: '#/components/schemas/ScenarioContext'
+          description: The metadata of the session
+        "404":
+          description: There is no such session stored
+      summary: Session metadata by ID
+      tags:
+      - scenario
+      x-openapi-router-controller: hitep.openapi_server.controllers.scenario_controller
+    put:
+      description: Start a new session (scenario)
+      operationId: start_scenario
+      parameters:
+      - description: The unique identifier for the session
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            examples:
+              minimal:
+                description: Minimal payload with only the required information
+                value:
+                  location: https://example.com/ontology/museum/twente
+                  user: https://example.com/ontology/alice
+              start:
+                description: Payload with predefined start time
+                value:
+                  start: 2000-01-01T00:00:00.000+00:00
+                  location: https://example.com/ontology/museum/twente
+                  user: https://example.com/ontology/alice
+            schema:
+              $ref: '#/components/schemas/ScenarioContext'
+        description: "The metadata of the session. Optional properties of the submitted\
+          \ ScenarioContext, as for instance the start time, will be filled in automatically.\
+          \ The end time of the ScenarioContext must not be filled in."
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+                start: 2000-01-01T00:00:00.000+00:00
+                location: https://example.com/ontology/museum/twente
+                user: https://example.com/ontology/alice
+              schema:
+                $ref: '#/components/schemas/ScenarioContext'
+          description: Successfully started a session
+        "409":
+          description: There is already an ongoing session
+      summary: Session start
+      tags:
+      - scenario
+      x-openapi-router-controller: hitep.openapi_server.controllers.scenario_controller
+  /scenario/{scenarioId}/audio:
+    post:
+      description: Stream audio recorded during the session. The stream can be interrupted
+        and started again by calling the endpoint subsequently as many times as needed.
+        Note that interruption of the stream may lead to interruption of speech transcription
+        if it happens during voice activity of the user.
+      operationId: stream_audio
+      parameters:
+      - description: The unique identifier for the session
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - explode: false
+        in: header
+        name: Content-Type
+        required: true
+        schema:
+          description: The content type with optional rate and channels parameters.
+          example: audio/l16;rate=16000;channels=2
+          pattern: ^audio/(l16;rate=\d+;channels=\d+|wav)$
+          type: string
+        style: simple
+      requestBody:
+        content:
+          audio/l16:
+            schema:
+              description: Raw PCM audio data in `audio/l16` format.
+              format: binary
+              type: string
+          audio/wav:
+            schema:
+              description: Raw audio data in `audio/wav` format.
+              format: binary
+              type: string
+        required: true
+      responses:
+        "200":
+          description: Audio uploaded successfully.
+        "400":
+          description: Invalid audio stream or request.
+        "409":
+          description: There is already an audio stream in progress for the specified
+            session"
+      summary: Audio stream
+      tags:
+      - audio
+      x-openapi-router-controller: hitep.openapi_server.controllers.audio_controller
+  /scenario/{scenarioId}/chat/response/latest:
+    get:
+      description: "Retrieve the most recent response of the agent, maybe empty if\
+        \ there was no response yet. This endpoint is intended for constant polling\
+        \ and supports caching through ETag headers. The response contains only a\
+        \ start timestamp, as the duration of the utterance is not known."
+      operationId: get_latest_response
+      parameters:
+      - description: The unique identifier for the session
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      - explode: false
+        in: header
+        name: If-None-Match
+        required: false
+        schema:
+          description: If-None-Match header for cache control
+          example: W/"1234567890"
+          type: string
+        style: simple
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                id: 62180674-2f58-467f-bc31-2c37a8dfa8c4
+                text: Hello world!
+                start: 2000-01-01T00:00:00.000+00:00
+              schema:
+                $ref: '#/components/schemas/Utterance'
+          description: The latest response of the agent
+          headers:
+            ETag:
+              description: "The ETag of the resource, used for cache validation"
+              explode: false
+              schema:
+                example: W/"1234567890"
+                type: string
+              style: simple
+            Cache-Control:
+              explode: false
+              schema:
+                description: Cache control header
+                example: "max-age=0, must-revalidate, proxy-revalidate"
+                type: string
+              style: simple
+        "204":
+          description: There is no response from the agent yet in this session
+        "304":
+          description: The last response has not changed since the provided ETag or
+            Last-Modified timestamp
+        "404":
+          description: There is no active session
+      summary: Latest response
+      tags:
+      - chat
+      x-openapi-router-controller: hitep.openapi_server.controllers.chat_controller
+  /scenario/{scenarioId}/gaze:
+    post:
+      description: "The event marks a sustained gaze of the user on an Area of Interest\
+        \ (AoI) in the painting, containing the submitted entities. There can be multiple\
+        \ gaze detections on with the same gaze target(s) in sequence, differing only\
+        \ by start and stop date."
+      operationId: submit_gaze
+      parameters:
+      - description: The unique identifier for the session
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            examples:
+              minimal:
+                value:
+                  position:
+                    x: 1.0
+                    "y": 2.0
+                    z: 3.0
+                  painting: https://example.com/image.jpg
+                  distance: 1.0
+                  entities:
+                  - IRI: https://example.com/ontology/crown
+                  start: 2000-01-23T04:56:07.000+00:00
+              full:
+                value:
+                  position:
+                    x: 1.0
+                    "y": 2.0
+                    z: 3.0
+                  painting: https://example.com/image.jpg
+                  distance: 1.0
+                  entities:
+                  - IRI: https://example.com/ontology/crown
+                    type:
+                    - https://example.com/ontology/jewlery
+                    label: crown
+                  - IRI: https://example.com/ontology/king-george
+                    type:
+                    - https://example.com/ontology/person
+                    - https://example.com/ontology/emperor
+                    label: King George
+                  start: 2000-01-23T04:56:07.000+00:00
+                  end: 2000-01-23T04:56:07.000+00:00
+            schema:
+              $ref: '#/components/schemas/GazeDetection'
+        description: The gaze information
+        required: true
+      responses:
+        "200":
+          description: Successfully submitted gaze information
+        "403":
+          description: The submitted scenario is not active
+      summary: Gaze event of the user
+      tags:
+      - gaze
+      x-openapi-router-controller: hitep.openapi_server.controllers.gaze_controller
+  /scenario/{scenarioId}/positionchange:
+    post:
+      description: "The event indicates the visitor's change in position. The position\
+        \ change can be instantly, the provided timestamp indicates that the user\
+        \ was at the provided current position at the provided timestamp."
+      operationId: submit_position_change
+      parameters:
+      - description: The unique identifier for the session
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionChange'
+        required: true
+      responses:
+        "200":
+          description: Successfully submitted position change
+        "403":
+          description: The submitted scenario is not active
+      summary: Position change of the user
+      tags:
+      - position
+      x-openapi-router-controller: hitep.openapi_server.controllers.position_controller
+  /scenario/{scenarioId}/stop:
+    post:
+      description: Stop a session
+      operationId: stop_scenario
+      parameters:
+      - description: The unique identifier for the session
+        example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        explode: false
+        in: path
+        name: scenarioId
+        required: true
+        schema:
+          format: uuid
+          type: string
+        style: simple
+      requestBody:
+        content:
+          application/json:
+            example:
+              end: 2000-01-23T04:56:07.000+00:00
+            schema:
+              $ref: '#/components/schemas/stopScenario_request'
+        description: "Optionally the end time of the session may be provided. If none\
+          \ is specified, the date of submission is used"
+        required: false
+      responses:
+        "200":
+          content:
+            application/json:
+              example:
+                start: 2000-01-01T00:00:00.000+00:00
+                location: https://example.com/ontology/museum/twente
+                end: 2000-01-01T01:00:00.000+00:00
+                id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+                user: https://example.com/ontology/alice
+              schema:
+                $ref: '#/components/schemas/ScenarioContext'
+          description: The metadata of the session
+        "404":
+          description: There is no session with the given ID
+      summary: Session end
+      tags:
+      - scenario
+      x-openapi-router-controller: hitep.openapi_server.controllers.scenario_controller
+components:
+  parameters:
+    scenarioId:
+      description: The unique identifier for the session
+      example: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+      explode: false
+      in: path
+      name: scenarioId
+      required: true
+      schema:
+        format: uuid
+        type: string
+      style: simple
+  schemas:
+    ScenarioContext:
+      description: Contextual meta-data of the session
+      example:
+        start: 2000-01-01T00:00:00.000+00:00
+        location: https://example.com/ontology/museum/twente
+        end: 2000-01-01T01:00:00.000+00:00
+        id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        user: https://example.com/ontology/alice
+      properties:
+        id:
+          description: The scenario identifier
+          format: uuid
+          type: string
+        location:
+          description: IRI of the location where the session takes place
+          type: string
+        user:
+          description: IRI identifying the user
+          type: string
+        start:
+          description: Start date of the session
+          format: date-time
+          type: string
+        end:
+          description: Start date of the session
+          format: date-time
+          type: string
+      required:
+      - location
+      - user
+      title: ScenarioContext
+      type: object
+    PositionChange:
+      example:
+        previous:
+          x: 0.0
+          "y": 0.0
+          z: 0.0
+        current:
+          x: 1.0
+          "y": 2.0
+          z: 3.0
+        timestamp: 2000-01-23T04:56:07.000+00:00
+      properties:
+        previous:
+          $ref: '#/components/schemas/3DCoordinate'
+        current:
+          $ref: '#/components/schemas/3DCoordinate'
+        timestamp:
+          description: Date of presence at the current position
+          format: date-time
+          type: string
+      required:
+      - current
+      - previous
+      title: PositionChange
+      type: object
+    Entity:
+      description: Entity in the knowledge graph
+      example:
+        IRI: https://example.com/ontology/king-george
+        type:
+        - https://example.com/ontology/person
+        - https://example.com/ontology/nobel
+        label: King George
+      properties:
+        IRI:
+          description: The IRI of the entity
+          type: string
+        type:
+          description: The type(s) of the entity in the ontology
+          items:
+            type: string
+          type: array
+        label:
+          description: A label associated with the entity
+          type: string
+      required:
+      - IRI
+      title: Entity
+      type: object
+    GazeDetection:
+      example:
+        position:
+          x: 1.0
+          "y": 2.0
+          z: 3.0
+        painting: https://example.com/image.jpg
+        distance: 1.0
+        entities:
+        - IRI: https://example.com/ontology/king-tubby
+          label: King Tubby
+        - IRI: https://example.com/ontology/king-george
+          label: King George
+        start: 2000-01-23T04:56:07.000+00:00
+        end: 2000-01-23T04:56:07.000+00:00
+      properties:
+        position:
+          $ref: '#/components/schemas/3DCoordinate'
+        painting:
+          description: IRI of the painting that is the target of the user gaze
+          type: string
+        distance:
+          description: Distance of the user to the painting during the gaze in meters
+          type: number
+        entities:
+          description: IRIs of the entities that are target of the user gaze
+          items:
+            $ref: '#/components/schemas/Entity'
+          type: array
+        start:
+          description: Start date of the gaze detection
+          format: date-time
+          type: string
+        end:
+          description: "End date of the gaze detection, if omitted, the end date will\
+            \ be assumed to be equal to the start date"
+          format: date-time
+          type: string
+      required:
+      - distance
+      - entities
+      - painting
+      - position
+      - start
+      title: GazeDetection
+      type: object
+    "3DCoordinate":
+      description: Coordinate in 3D space
+      example:
+        x: 1.0
+        "y": 2.0
+        z: 3.0
+      properties:
+        x:
+          type: number
+        "y":
+          type: number
+        z:
+          type: number
+      required:
+      - x
+      - "y"
+      - z
+      title: 3DCoordinate
+      type: object
+    Utterance:
+      description: Utterance of an agent/user
+      example:
+        id: 62180674-2f58-467f-bc31-2c37a8dfa8c4
+        text: Hello world!
+        start: 2000-01-23T04:56:07.000+00:00
+        end: 2000-01-23T04:56:17.000+00:00
+      properties:
+        id:
+          description: A unique identifier of the utterance
+          format: uuid
+          type: string
+        text:
+          type: string
+        start:
+          description: Start date of the utterance
+          format: date-time
+          type: string
+        end:
+          description: "End date of the utterance, if empty the length of the utterance\
+            \ is not known"
+          format: date-time
+          type: string
+      required:
+      - text
+      title: Utterance
+      type: object
+    stopScenario_request:
+      properties:
+        end:
+          description: End date of the session
+          format: date-time
+          title: end
+          type: string
+      title: stopScenario_request
+      type: object
