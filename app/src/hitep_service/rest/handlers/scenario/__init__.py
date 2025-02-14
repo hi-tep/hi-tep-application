@@ -1,1 +1,1 @@
-from hitep_service.rest.handlers.handlers import (CurrentView, StopView, GazeView)
+from hitep_service.rest.handlers.handlers import (CurrentView, StopView, GazeView, PositionchangeView, AudioView)

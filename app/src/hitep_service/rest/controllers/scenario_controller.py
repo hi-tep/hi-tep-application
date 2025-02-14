@@ -1,6 +1,8 @@
+import itertools
 import logging
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 import requests
 from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, Agent
@@ -22,7 +24,6 @@ class HiTepContext(ScenarioContext):
     agent: Agent
     speaker: Agent
     location_id: str
-    location: str
 
 
 class ScenarioController:
@@ -32,25 +33,55 @@ class ScenarioController:
         self._knowledge_topic = knowledge_topic
 
         self._scenario = None
+        self._perception_counter = None
 
     @property
-    def current(self) -> Scenario[HiTepContext]:
+    def current(self) -> Optional[Scenario[HiTepContext]]:
         return self._scenario
 
-    def start_scenario(self, context: models.ScenarioContext):
+    @property
+    def current_context(self) -> Optional[models.ScenarioContext]:
+        if self.current is None:
+            return None
+
+        if not self.current.end:
+            return models.ScenarioContext(id=self.current.id,
+                                   user=self.current.context.speaker.uri, location=self.current.context.location_id,
+                                   start=datetime.fromtimestamp(self.current.start//1000, timezone.utc))
+
+        return models.ScenarioContext(id=self.current.id,
+                               user=self.current.context.speaker.uri, location=self.current.context.location_id,
+                               start=datetime.fromtimestamp(self.current.start//1000, timezone.utc),
+                               end=datetime.fromtimestamp(self.current.end//1000, timezone.utc))
+
+    def next_counter(self):
+        return next(self._perception_counter) if self._perception_counter else None
+
+    def start_scenario(self, context: models.ScenarioContext) -> models.ScenarioContext:
         scenario, capsule = self._create_scenario(context)
         self._event_bus.publish(self._scenario_topic, Event.for_payload(ScenarioStarted.create(scenario)))
         self._event_bus.publish(self._knowledge_topic, Event.for_payload([capsule]))
         self._scenario = scenario
+        self._perception_counter = itertools.count()
+
         logger.info("Started scenario %s", scenario)
 
-    def stop_scenario(self, timestamp: datetime):
+        return self.current_context
+
+    def stop_scenario(self, timestamp: datetime) -> models.ScenarioContext:
         scenario_end = int(timestamp.timestamp() * 1000) if timestamp else timestamp_now()
         self._scenario.ruler.end = scenario_end
 
         self._event_bus.publish(self._scenario_topic,
                                 Event.for_payload(ScenarioStopped.create(self._scenario)))
+
+        stopped_context = self.current_context
+        self._scenario = None
+        self._perception_counter = None
+
         logger.info("Stopped scenario %s", self._scenario)
+
+        return stopped_context
 
     def _create_scenario(self, context: models.ScenarioContext):
         signals = {
@@ -59,10 +90,10 @@ class ScenarioController:
         }
 
         scenario_start = int(context.start.timestamp() * 1000) if context.start else timestamp_now()
-        location = context.location if context.location else self._get_location()
+        location_id = context.location if context.location else str(uuid.uuid4())
         user = Agent(context.user.split("/")[-1], context.user)
 
-        scenario_context = HiTepContext(AGENT, user, str(uuid.uuid4()), location)
+        scenario_context = HiTepContext(AGENT, user, location_id)
         scenario = Scenario.new_instance(context.id if context.id else str(uuid.uuid4()),
                                          scenario_start, None, scenario_context, signals)
 
@@ -71,7 +102,7 @@ class ScenarioController:
             "context_id": scenario.id,
             "date": datetime.fromtimestamp(scenario_start // 1000, timezone.utc).isoformat(),
             "place": None,
-            "place_id": location,
+            "place_id": location_id,
             "country": "",
             "region": "",
             "city": ""

@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 
 from flask import request
 from flask.views import MethodView
@@ -8,7 +9,9 @@ from hitep.openapi_server.models.scenario_context import ScenarioContext  # noqa
 from hitep.openapi_server.models.stop_scenario_request import StopScenarioRequest  # noqa: E501
 from hitep_service.rest.controllers.chat_controller import ChatController
 from hitep_service.rest.controllers.gaze_controller import GazeController
+from hitep_service.rest.controllers.position_controller import PositionController
 from hitep_service.rest.controllers.scenario_controller import ScenarioController
+from hitep.openapi_server.models.position_change import PositionChange
 
 logger = logging.getLogger(__name__)
 
@@ -17,8 +20,8 @@ class CurrentView(MethodView):
     def __init__(self, controller: ScenarioController):
         self._controller = controller
 
-    def get(self, scenario_id):  # noqa: E501
-        current = self._controller.current
+    def get(self):  # noqa: E501
+        current = self._controller.current_context
 
         return current if current else (None, 404)
 
@@ -74,6 +77,24 @@ class GazeView(MethodView):
     def post(self, scenario_id, body):  # noqa: E501
         gaze_detection = body if isinstance(body, GazeDetection) else GazeDetection.from_dict(body)
         self._controller.add_gaze(scenario_id, gaze_detection)
+
+        return None, 200
+
+
+class PositionchangeView(MethodView):
+    def __init__(self, controller: PositionController):
+        self._controller = controller
+
+    def post(self, scenario_id, body):  # noqa: E501
+        position_change = body if isinstance(body, PositionChange) else PositionChange.from_dict(body)
+        self._controller.add_position_change(scenario_id, position_change=position_change)
+
+        return None, 200
+
+
+class AudioView(MethodView):
+    def post(self, scenario_id, content_type, body):  # noqa: E501
+        return None, 200
 
 
 class LatestView(MethodView):

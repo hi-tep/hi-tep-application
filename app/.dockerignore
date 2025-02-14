@@ -1,6 +1,9 @@
 Dockerfile
 .dockerignore
 
+py-app/resources
+py-app/storage
+
 .git
 
 venv

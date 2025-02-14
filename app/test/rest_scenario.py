@@ -12,6 +12,7 @@ from attr import dataclass
 
 from hitep_service.rest.handlers.encoder import JSONEncoder
 from hitep.openapi_server.models import GazeDetection, Model3DCoordinate, Entity, ScenarioContext
+from hitep.openapi_server.models.position_change import PositionChange
 
 logger = logging.getLogger(__name__)
 
@@ -40,11 +41,18 @@ class RESTScenario:
         response = requests.put(url, json=data_dict)
         logger.info("Scenario %s started: %s [%s]", scenario_id, response, response.text)
 
+    def current_scenario(self):
+        url = self.resolve("scenario/current")
+
+        logger.debug("Get current scenario from %s", url)
+        response = requests.get(url)
+        logger.info("Got current scenario %s [%s]", response, response.text)
+
     def stop_scenario(self, scenario_id, end):
         url = self.resolve(f"scenario/{scenario_id}/stop")
         data_dict = self.to_dict({"end": end})
 
-        logger.info("Stoppinbg scenario %s at %s: %s", scenario_id, url, data_dict)
+        logger.debug("Stoppinbg scenario %s at %s: %s", scenario_id, url, data_dict)
         response = requests.post(url, json=data_dict)
         logger.info("Scenario %s stopped: %s [%s]", scenario_id, response, response.text)
 
@@ -52,14 +60,22 @@ class RESTScenario:
         url = self.resolve(f"scenario/{scenario_id}/gaze")
         data_dict = self.to_dict(gaze_data)
 
-        logger.info("Sending gaze for scenario %s to %s: %s", scenario_id, url, data_dict)
+        logger.debug("Sending gaze for scenario %s to %s: %s", scenario_id, url, data_dict)
         response = requests.post(url, json=data_dict)
         logger.info("Gaze posted for scenario %s: %s [%s]", scenario_id, response, response.text)
+
+    def position_change(self, scenario_id, position_data):
+        url = self.resolve(f"scenario/{scenario_id}/positionchange")
+        data_dict = self.to_dict(position_data)
+
+        logger.debug("Sending position change for scenario %s to %s: %s", scenario_id, url, data_dict)
+        response = requests.post(url, json=data_dict)
+        logger.info("position change posted for scenario %s: %s [%s]", scenario_id, response, response.text)
 
     def get_latest(self, scenario_id):
         url = self.resolve(f"scenario/{scenario_id}/chat/response/latest")
 
-        logger.info("Get latest response for scenario %s from %s", scenario_id, url)
+        logger.debug("Get latest response for scenario %s from %s", scenario_id, url)
         response = requests.get(url)
         logger.info("Gaze posted for scenario %s: %s [%s]", scenario_id, response, response.text)
 
@@ -92,6 +108,17 @@ class GazeDetectionData:
                              start=self.start, end=self.end)
 
 
+@dataclass
+class PositionChangeData:
+    previous: Model3DCoordinate
+    current: Model3DCoordinate
+    timestamp: Optional[datetime] = None
+
+    def to_timestamp(self):
+        self.timestamp = self.timestamp if self.timestamp else datetime.now()
+        return PositionChange(previous=self.previous, current=self.current, timestamp=self.timestamp)
+
+
 SCENARIO_ID = str(uuid.uuid4())
 
 GAZE_DETECTIONS = [
@@ -103,18 +130,24 @@ GAZE_DETECTIONS = [
                   painting="http://vrmtwente.nl/painting1"),
 ]
 
+POSITIONS = [
+    PositionChangeData(previous=Model3DCoordinate(0, 0, 0), current=Model3DCoordinate(1, 1, 1)),
+]
+
 SCENARIO1 = [
     (RESTScenario.start_scenario.__name__, (SCENARIO_ID,), 1),
+    (RESTScenario.current_scenario.__name__, (), 1),
     (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_start()), 5),
     (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_end()), 1),
-    (RESTScenario.stop_scenario.__name__, (SCENARIO_ID, datetime.now()), 1),
     (RESTScenario.get_latest.__name__, (SCENARIO_ID,), 1),
+    (RESTScenario.position_change.__name__, (SCENARIO_ID, POSITIONS[0].to_timestamp()), 1),
+    (RESTScenario.get_latest.__name__, (SCENARIO_ID,), 1),
+    (RESTScenario.stop_scenario.__name__, (SCENARIO_ID, datetime.now()), 1),
 ]
 
 def main(url):
     test_scenario = RESTScenario(url, SCENARIO1)
     test_scenario.run()
-
 
 
 if __name__ == '__main__':
