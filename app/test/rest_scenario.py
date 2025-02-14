@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import time
 import uuid
 from datetime import datetime
 from typing import List, Optional
@@ -59,6 +60,7 @@ class RESTScenario:
         for action, args, wait in self._scenario_data:
             fct = getattr(self, action)
             fct(*args)
+            time.sleep(wait)
 
 
 @dataclass
@@ -95,10 +97,10 @@ GAZE_DETECTIONS = [
 ]
 
 SCENARIO1 = [
-    (RESTScenario.start_scenario.__name__, (SCENARIO_ID,), 0.1),
-    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_start()), 0.1),
-    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_end()), 0.1),
-    (RESTScenario.stop_scenario.__name__, (SCENARIO_ID, datetime.now()), 0.1),
+    (RESTScenario.start_scenario.__name__, (SCENARIO_ID,), 1),
+    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_start()), 1),
+    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_end()), 1),
+    (RESTScenario.stop_scenario.__name__, (SCENARIO_ID, datetime.now()), 1),
 ]
 
 def main(url):

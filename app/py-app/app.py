@@ -5,6 +5,7 @@ import os
 import pathlib
 import time
 
+from a2wsgi import ASGIMiddleware
 from cltl.brain import LongTermMemory
 from cltl.chatui.api import Chats
 from cltl.chatui.memory import MemoryChats
@@ -24,7 +25,6 @@ from emissor.representation.util import serializer as emissor_serializer
 from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
-from a2wsgi import WSGIMiddleware, ASGIMiddleware
 
 from hitep_service.rest.service import HiTepRESTService
 

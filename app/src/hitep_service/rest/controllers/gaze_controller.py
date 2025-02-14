@@ -1,123 +1,94 @@
-from pprint import pprint
+import enum
+import hashlib
+import itertools
 
 from cltl.combot.infra.event import EventBus, Event
 from cltl.commons.discrete import UtteranceType
 
 from hitep.openapi_server.models import GazeDetection
+from hitep_service.rest.controllers.scenario_controller import ScenarioController
+
+
+class Predicate(enum.Enum):
+    GAZE = "gaze"
+    HAS_DISTANCE = "has-distance"
+    IS_AT = "is-at"
 
 
 class GazeController:
-    def __init__(self, scenario_controller, event_bus: EventBus, knowledge_topic: str):
+    def __init__(self, scenario_controller: ScenarioController, event_bus: EventBus, knowledge_topic: str):
         self._scenario_controller = scenario_controller
         self._event_bus = event_bus
         self._knowledge_topic = knowledge_topic
+
+        self._counter = None
+
+        self._active_gaze = {}
 
     def add_gaze(self, scenario_id, gaze_detection: GazeDetection):  # noqa: E501
         current = self._scenario_controller.current
         if not current or current.id != scenario_id:
             raise ValueError(f"Scenario ID does not match, expected: {current and current.id}, actual: {scenario_id}")
 
-        capsule = self._create_triples(scenario_id, gaze_detection.start, gaze_detection.start)
+        capsules = self._create_experience(scenario_id, gaze_detection)
 
-        pprint(capsule, indent=4)
-        self._event_bus.publish('cltl.topic.knowledge', Event.for_payload(capsule[1]))
+        # pprint(capsules, indent=4)
+        self._event_bus.publish('cltl.topic.knowledge', Event.for_payload(capsules))
 
-    def _create_triples(self, context_id, start_date, triples):
-        return [
-                       {
-                           "visual": 1,
-                           "detection": 1,
-                           "source": {"label": "front-camera", "type": ["sensor"],
-                                      'uri': "http://cltl.nl/leolani/inputs/front-camera"},
-                           "image": None,
-                           "utterance_type": UtteranceType.EXPERIENCE_TRIPLE,
-                           "region": [752, 46, 1148, 716],
-                           "item": {'label': 'chair 1', 'type': ['chair'], 'id': 1,
-                                    'uri': "http://cltl.nl/leolani/world/chair-1"},
-                           "subject": {'label': 'chair 1', 'type': ['chair'], 'id': 1,
-                                    'uri': "http://cltl.nl/leolani/world/chair-1"},
-                           "predicate": {"label": "be-in", 'id': 1, "uri": "http://cltl.nl/leolani/n2mu/be-in"},
-                           "object": {"label": "Piek's office", "type": ["location"], 'id': 1,
-                                      "uri": "http://cltl.nl/leolani/world/pieks-office"},
-                           "perspective": {"certainty": 68,
-                                           "polarity": 1,
-                                           "sentiment": 0
-                                           },
+    def _create_experience(self, scenario_id, gaze: GazeDetection):
+        user = self._scenario_controller.current.context.speaker.uri
+        if not self._counter or scenario_id not in self._counter:
+            self._counter = {scenario_id: itertools.count()}
 
-                           'confidence': 0.68,
-                           "timestamp": start_date,
-                           "context_id": context_id
-                       },
-                       {
-                           "visual": 1,
-                           "detection": 2,
-                           "source": {"label": "front-camera", "type": ["sensor"],
-                                      'uri': "http://cltl.nl/leolani/inputs/front-camera"},
-                           "image": None,
-                           "utterance_type": UtteranceType.EXPERIENCE_TRIPLE,
-                           "region": [752, 46, 1148, 716],
-                           "item": {'label': 'apple 1', 'type': ['fruit'], 'id': 1,
-                                    'uri': "http://cltl.nl/leolani/world/apple-1"},
-                           "subject": {'label': 'apple 1', 'type': ['fruit'],
-                                    'uri': "http://cltl.nl/leolani/world/apple-1"},
-                           "predicate": {"label": "be-in", "uri": "http://cltl.nl/leolani/n2mu/be-in"},
-                           "object": {"label": "Piek's office", "type": ["location"],
-                                      "uri": "http://cltl.nl/leolani/world/pieks-office"},
-                           "perspective": {"certainty": 68,
-                                           "polarity": 1,
-                                           "sentiment": 0
-                                           },
-                           'confidence': 0.98,
-                           "timestamp": start_date,
-                           "context_id": context_id
-                       },
-                       {
-                           "visual": 1,
-                           "detection": 2,
-                           "source": {"label": "front-camera", "type": ["sensor"],
-                                      'uri': "http://cltl.nl/leolani/inputs/front-camera"},
-                           "image": None,
-                           "utterance_type": UtteranceType.EXPERIENCE_TRIPLE,
-                           "region": [752, 46, 1700, 716],
-                           "item": {'label': 'Carl', 'type': ['person'], 'id': None,
-                                    'uri': "http://cltl.nl/leolani/world/carl-1"},
-                           "subject": {'label': 'Carl', 'type': ['person'],
-                                    'uri': "http://cltl.nl/leolani/world/carl-1"},
-                           "predicate": {"label": "be-in", "uri": "http://cltl.nl/leolani/n2mu/be-in"},
-                           "object": {"label": "Piek's office", "type": ["location"],
-                                      "uri": "http://cltl.nl/leolani/world/pieks-office"},
-                           "perspective": {"certainty": 68,
-                                           "polarity": 1,
-                                           "sentiment": 0
-                                           },
-                           'confidence': 0.94,
-                           "timestamp": start_date,
-                           "context_id": context_id
-                       }
-                   ]
+        # TODO Threadsafty
+        detection = next(self._counter[scenario_id])
+
+        triples = [caps for entity in gaze.entities for caps in self._create_triples(scenario_id, detection, user, entity, gaze)]
+        triples.extend(self._create_triples(scenario_id, detection, user, None, gaze))
+
+        gaze_id = hashlib.md5(f"{scenario_id}%{gaze.painting}%{gaze.entities}".encode("utf")).hexdigest()
+
+        if gaze.end:
+            # Add end timestamp to triples
+            del self._active_gaze[gaze_id]
+        else:
+            self._active_gaze[gaze_id] = gaze
+
+        return [triple.to_dict() for triple in triples]
+
+    def _create_triples(self, scenario_id, detection, user, entity, gaze: GazeDetection):
+        triples = [Triple(scenario_id, detection, gaze.start, user, Predicate.GAZE.value, gaze.painting),]
+                   # Triple(scenario_id, detection, gaze.start, user, Predicate.HAS_DISTANCE.value, gaze.distance),
+                   # Triple(scenario_id, detection, gaze.start, user, Predicate.IS_AT.value, gaze.position)]
+
+        if entity:
+            triples.append(Triple(scenario_id, detection, gaze.start, user, Predicate.GAZE.value, entity.iri))
+
+        return triples
+
 
 class Triple:
-    def __init__(self, scenario_id, date, item, subject, predicate, object):
+    def __init__(self, scenario_id, detection, date, subject, predicate, object):
         self.scenario_id = scenario_id
+        self.detection = detection
         self.date = date
-        self.item = item
         self.subject = subject
         self.predicate = predicate
         self.object = object
 
-    def to_dict(self, triple):
+    def to_dict(self):
         return {
-            "visual": 1,
-            "detection": 1,
+            "visual": self.scenario_id,
+            "detection": self.detection,
             "source": {"label": "HiTep REST gaze", "type": ["sensor"],
-                       'uri': "http://cltl.nl/leolani/inputs/hhitep/rest/gaze"},
+                       "uri": "http://cltl.nl/leolani/inputs/hitep/rest/gaze"},
             "image": None,
             "utterance_type": UtteranceType.EXPERIENCE_TRIPLE,
             "region": [0, 0, 0, 0],
-            "item": self.item,
-            "subject": self.subject,
-            "predicate": self.predicate,
-            "object": self.object,
+            "item": None,
+            "subject": {'label': self.subject.split("/")[-1], 'type': [], 'uri': self.subject},
+            "predicate": {"label": "self.predicate", "uri": f"http://cltl.nl/leolani/hitep/{self.predicate}"},
+            "object": ({'label': self.object.split("/")[-1], 'type': [], 'uri': self.object}),
             "perspective": {"certainty": 1, "polarity": 1, "sentiment": 0},
             'confidence': 1.00,
             "timestamp": self.date,

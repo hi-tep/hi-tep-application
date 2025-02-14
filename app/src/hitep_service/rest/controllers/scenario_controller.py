@@ -34,7 +34,7 @@ class ScenarioController:
         self._scenario = None
 
     @property
-    def current(self):
+    def current(self) -> Scenario[HiTepContext]:
         return self._scenario
 
     def start_scenario(self, context: models.ScenarioContext):
@@ -44,8 +44,10 @@ class ScenarioController:
         self._scenario = scenario
         logger.info("Started scenario %s", scenario)
 
-    def stop_scenario(self, timestamp):
-        self._scenario.ruler.end = timestamp if timestamp else timestamp_now()
+    def stop_scenario(self, timestamp: datetime):
+        scenario_end = int(timestamp.timestamp() * 1000) if timestamp else timestamp_now()
+        self._scenario.ruler.end = scenario_end
+
         self._event_bus.publish(self._scenario_topic,
                                 Event.for_payload(ScenarioStopped.create(self._scenario)))
         logger.info("Stopped scenario %s", self._scenario)
