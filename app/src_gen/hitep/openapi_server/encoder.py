@@ -1,19 +1,22 @@
-from connexion.apps.flask_app import FlaskJSONEncoder
+from connexion.jsonifier import Jsonifier
+from flask.json.provider import DefaultJSONProvider
 
 from hitep.openapi_server.models.base_model import Model
 
 
-class JSONEncoder(FlaskJSONEncoder):
+class JSONEncoder(Jsonifier):
     include_nulls = False
 
-    def default(self, o):
-        if isinstance(o, Model):
+    def dumps(data, **kwargs):
+        if isinstance(data, Model):
             dikt = {}
-            for attr in o.openapi_types:
-                value = getattr(o, attr)
-                if value is None and not self.include_nulls:
+            for attr in data.openapi_types:
+                value = getattr(data, attr)
+                if value is None and not JSONEncoder.include_nulls:
                     continue
-                attr = o.attribute_map[attr]
+                attr = data.attribute_map[attr]
                 dikt[attr] = value
+
             return dikt
-        return FlaskJSONEncoder.default(self, o)
+
+        return DefaultJSONProvider.default(data)

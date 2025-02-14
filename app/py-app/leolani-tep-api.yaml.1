@@ -1,0 +1,491 @@
+openapi: 3.0.3
+info:
+  title: TEP REST API
+  description: |-
+    REST API specification for integration of TEP components
+
+    Some useful links:
+    - [The repository](https://github.com/hi-tep/tep-rest-api)
+    - [Leolani](https://github.com/leolani)
+    - [EMISSOR](https://github.com/leolani/emissor)
+  termsOfService: https://swagger.io/terms/
+  contact:
+    email: p.t.j.m.vossen@vu.nl
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+  version: 1.0.11
+externalDocs:
+  description: Find out more about Swagger
+  url: https://swagger.io
+tags:
+  - name: scenario
+    externalDocs:
+      description: Scenario in the EMISSOR framework
+      url: https://github.com/leolani/emissor
+paths:
+  /scenario/{scenarioId}:
+    put:
+      summary: Session start
+      description: Start a new session (scenario)
+      tags:
+        - scenario
+      operationId: startScenario
+      parameters:
+        - $ref: '#/components/parameters/scenarioId'
+      requestBody:
+        description: The metadata of the session. Optional properties of the submitted ScenarioContext,
+                     as for instance the start time, will be filled in automatically. The end time of the
+                     ScenarioContext must not be filled in.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScenarioContext'
+            examples:
+              minimal:
+                description: Minimal payload with only the required information
+                value:
+                  location: https://example.com/ontology/museum/twente
+                  user: https://example.com/ontology/alice
+              start:
+                description: Payload with predefined start time
+                value:
+                  start: 2000-01-01T00:00:00.000+00:00
+                  location: https://example.com/ontology/museum/twente
+                  user: https://example.com/ontology/alice
+      responses:
+        '200':
+          description: Successfully started a session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioContext'
+              example:
+                id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+                start: 2000-01-01T00:00:00.000+00:00
+                location: https://example.com/ontology/museum/twente
+                user: https://example.com/ontology/alice
+        '409':
+          description: There is already an ongoing session
+    get:
+      summary: Session metadata by ID
+      description: Retrieve session metadata by ID
+      tags:
+        - scenario
+      operationId: getScenario
+      parameters:
+        - $ref: '#/components/parameters/scenarioId'
+      responses:
+        '200':
+          description: The metadata of the session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioContext'
+              example:
+                id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+                start: 2000-01-01T00:00:00.000+00:00
+                location: https://example.com/ontology/museum/twente
+                user: https://example.com/ontology/alice
+        '404':
+          description: There is no such session stored
+  /scenario/current:
+    get:
+      summary: Current session metadata
+      description: Retrieve session metadata of the current session
+      tags:
+        - scenario
+      operationId: currentScenario
+      responses:
+        '200':
+          description: The metadata of the session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioContext'
+              example:
+                id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+                start: 2000-01-01T00:00:00.000+00:00
+                location: https://example.com/ontology/museum/twente
+                user: https://example.com/ontology/alice
+        '404':
+          description: There is no active session
+  /scenario/{scenarioId}/stop:
+    post:
+      summary: Session end
+      description: Stop a session
+      tags:
+        - scenario
+      operationId: stopScenario
+      parameters:
+        - $ref: '#/components/parameters/scenarioId'
+      requestBody:
+        required: false
+        description: Optionally the end time of the session may be provided. If none is specified, the
+                     date of submission is used
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                end:
+                  type: string
+                  format: date-time
+                  description: End date of the session
+            example:
+              end: 2000-01-23T04:56:07.000+00:00
+      responses:
+        '200':
+          description: The metadata of the session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScenarioContext'
+              example:
+                start: 2000-01-01T00:00:00.000+00:00
+                location: https://example.com/ontology/museum/twente
+                end: 2000-01-01T01:00:00.000+00:00
+                id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+                user: https://example.com/ontology/alice
+        '404':
+          description: There is no session with the given ID
+  /scenario/{scenarioId}/positionchange:
+    post:
+      summary: Position change of the user
+      description: The event indicates the visitor's change in position. The position change can be instantly,
+                   the provided timestamp indicates that the user was at the provided current position at the
+                   provided timestamp.
+      tags:
+        - position
+      operationId: submitPositionChange
+      parameters:
+        - $ref: '#/components/parameters/scenarioId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PositionChange'
+      responses:
+        '200':
+          description: Successfully submitted position change
+        '403':
+          description: The submitted scenario is not active
+  /scenario/{scenarioId}/gaze:
+    post:
+      summary: Gaze event of the user
+      description: The event marks a sustained gaze of the user on an Area of Interest (AoI) in the painting, containing
+                   the submitted entities. There can be multiple gaze detections on with the same gaze target(s) in
+                   sequence, differing only by start and stop date.
+      tags:
+        - gaze
+      operationId: submitGaze
+      parameters:
+        - $ref: '#/components/parameters/scenarioId'
+      requestBody:
+        required: true
+        description: The gaze information
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GazeDetection'
+            examples:
+              minimal:
+                value:
+                  position:
+                    x: 1.0
+                    y: 2.0
+                    z: 3.0
+                  painting: https://example.com/image.jpg
+                  distance: 1.0
+                  entities:
+                    - IRI: https://example.com/ontology/crown
+                  start: 2000-01-23T04:56:07.000+00:00
+              full:
+                value:
+                  position:
+                    x: 1.0
+                    y: 2.0
+                    z: 3.0
+                  painting: https://example.com/image.jpg
+                  distance: 1.0
+                  entities:
+                    - IRI: https://example.com/ontology/crown
+                      type:
+                        - https://example.com/ontology/jewlery
+                      label: crown
+                    - IRI: https://example.com/ontology/king-george
+                      type:
+                        - https://example.com/ontology/person
+                        - https://example.com/ontology/emperor
+                      label: King George
+                  start: 2000-01-23T04:56:07.000+00:00
+                  end: 2000-01-23T04:56:07.000+00:00
+      responses:
+        '200':
+          description: Successfully submitted gaze information
+        '403':
+          description: The submitted scenario is not active
+  /scenario/{scenarioId}/audio:
+    post:
+      summary: Audio stream
+      description: Stream audio recorded during the session. The stream can be interrupted and started again by calling
+                   the endpoint subsequently as many times as needed. Note that interruption of the stream may lead to
+                   interruption of speech transcription if it happens during voice activity of the user.
+      operationId: streamAudio
+      tags:
+        - audio
+      parameters:
+        - $ref: '#/components/parameters/scenarioId'
+        - name: Content-Type
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^audio/(l16;rate=\d+;channels=\d+|wav)$
+            description: The content type with optional rate and channels parameters.
+            example: audio/l16;rate=16000;channels=2
+      requestBody:
+        required: true
+        content:
+          audio/l16:
+            schema:
+              type: string
+              format: binary
+              description: Raw PCM audio data in `audio/l16` format.
+          audio/wav:
+            schema:
+              type: string
+              format: binary
+              description: Raw audio data in `audio/wav` format.
+      responses:
+        '200':
+          description: Audio uploaded successfully.
+        '400':
+          description: Invalid audio stream or request.
+        '409':
+          description: There is already an audio stream in progress for the specified session"
+  /scenario/{scenarioId}/chat/response/latest:
+    get:
+      summary: Latest response
+      description: Retrieve the most recent response of the agent, maybe empty if there was no response yet. This
+                   endpoint is intended for constant polling and supports caching through ETag headers. The response
+                   contains only a start timestamp, as the duration of the utterance is not known.
+      tags:
+        - chat
+      operationId: getLatestResponse
+      parameters:
+        - $ref: '#/components/parameters/scenarioId'
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+            description: If-None-Match header for cache control
+            example: W/"1234567890"
+      responses:
+        '200':
+          description: The latest response of the agent
+          headers:
+            ETag:
+              description: The ETag of the resource, used for cache validation
+              schema:
+                type: string
+                example: W/"1234567890"
+            Cache-Control:
+              schema:
+                type: string
+                description: Cache control header
+                example: "max-age=0, must-revalidate, proxy-revalidate"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Utterance'
+              example:
+                id: "62180674-2f58-467f-bc31-2c37a8dfa8c4"
+                text: "Hello world!"
+                start: 2000-01-01T00:00:00.000+00:00
+        '204':
+          description: There is no response from the agent yet in this session
+        '304':
+          description: The last response has not changed since the provided ETag or Last-Modified timestamp
+        '404':
+          description: There is no active session
+components:
+  parameters:
+    scenarioId:
+      name: scenarioId
+      description: The unique identifier for the session
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      example: "ee6ce14a-94e4-4ddd-ac60-d1e0262f0274"
+  schemas:
+    ScenarioContext:
+      type: object
+      description: Contextual meta-data of the session
+      example:
+        start: 2000-01-01T00:00:00.000+00:00
+        location: https://example.com/ontology/museum/twente
+        end: 2000-01-01T01:00:00.000+00:00
+        id: ee6ce14a-94e4-4ddd-ac60-d1e0262f0274
+        user: https://example.com/ontology/alice
+      required:
+        - user
+        - location
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The scenario identifier
+        location:
+          type: string
+          description: IRI of the location where the session takes place
+        user:
+          type: string
+          description: IRI identifying the user
+        start:
+          type: string
+          format: date-time
+          description: Start date of the session
+        end:
+          type: string
+          format: date-time
+          description: Start date of the session
+    PositionChange:
+      type: object
+      properties:
+        previous:
+          $ref: "#/components/schemas/3DCoordinate"
+        current:
+          $ref: "#/components/schemas/3DCoordinate"
+        timestamp:
+          type: string
+          format: date-time
+          description: Date of presence at the current position
+      required:
+        - previous
+        - current
+      example:
+        previous:
+          x: 0.0
+          y: 0.0
+          z: 0.0
+        current:
+          x: 1.0
+          y: 2.0
+          z: 3.0
+        timestamp: 2000-01-23T04:56:07.000+00:00
+    Entity:
+      type: object
+      description: Entity in the knowledge graph
+      required:
+        - IRI
+      properties:
+        IRI:
+          description: The IRI of the entity
+          type: string
+        type:
+          description: The type(s) of the entity in the ontology
+          type: array
+          items:
+            type: string
+        label:
+          description: A label associated with the entity
+          type: string
+      example:
+        IRI: https://example.com/ontology/king-george
+        type:
+          - https://example.com/ontology/person
+          - https://example.com/ontology/nobel
+        label: King George
+    GazeDetection:
+      type: object
+      properties:
+        position:
+          $ref: "#/components/schemas/3DCoordinate"
+        painting:
+          type: string
+          description: IRI of the painting that is the target of the user gaze
+        distance:
+          type: number
+          description: Distance of the user to the painting during the gaze in meters
+        entities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entity'
+          description: IRIs of the entities that are target of the user gaze
+        start:
+          type: string
+          format: date-time
+          description: Start date of the gaze detection
+        end:
+          type: string
+          format: date-time
+          description: End date of the gaze detection, if omitted, the end date will be assumed to be equal to the start date
+      required:
+        - position
+        - painting
+        - distance
+        - entities
+        - start
+      example:
+        position:
+          x: 1.0
+          y: 2.0
+          z: 3.0
+        painting: https://example.com/image.jpg
+        distance: 1.0
+        entities:
+          - IRI: https://example.com/ontology/king-tubby
+            label: King Tubby
+          - IRI: https://example.com/ontology/king-george
+            label: King George
+        start: 2000-01-23T04:56:07.000+00:00
+        end: 2000-01-23T04:56:07.000+00:00
+    3DCoordinate:
+      type: object
+      description: Coordinate in 3D space
+      required:
+        - x
+        - y
+        - z
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        z:
+          type: number
+      example:
+        x: 1.0
+        y: 2.0
+        z: 3.0
+    Utterance:
+      type: object
+      description: Utterance of an agent/user
+      required:
+        - text
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: A unique identifier of the utterance
+        text:
+          type: string
+        start:
+          type: string
+          format: date-time
+          description: Start date of the utterance
+        end:
+          type: string
+          format: date-time
+          description: End date of the utterance, if empty the length of the utterance is not known
+      example:
+        id: 62180674-2f58-467f-bc31-2c37a8dfa8c4
+        text: Hello world!
+        start: 2000-01-23T04:56:07.000+00:00
+        end: 2000-01-23T04:56:17.000+00:00

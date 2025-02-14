@@ -1,24 +1,27 @@
 import logging
-import uuid
-from typing import Union
 
 import connexion
-from connexion import RestyResolver
-from flask import Response
-
-from cltl.combot.event.emissor import TextSignalEvent, ScenarioStarted
+from cltl.combot.event.emissor import TextSignalEvent
 from cltl.combot.infra.config import ConfigurationManager
 from cltl.combot.infra.event import Event, EventBus
 from cltl.combot.infra.resource import ResourceManager
-from cltl.combot.infra.time_util import timestamp_now
 from cltl.combot.infra.topic_worker import TopicWorker
-from emissor.representation.scenario import TextSignal, Scenario, Modality
-from hitep_service.rest.controllers.api import Source, PaintingExperience, Entity
-from hitep_service.rest.openapi.models import GazeDetection, ScenarioContext
+from connexion.jsonifier import Jsonifier
+from connexion.resolver import MethodViewResolver
 
-from openapi_server.encoder import JSONEncoder
+from hitep_service.rest.handlers.encoder import JSONEncoder
+from hitep_service.rest.controllers.gaze_controller import GazeController
+from hitep_service.rest.controllers.scenario_controller import ScenarioController
 
 logger = logging.getLogger(__name__)
+
+
+class ConnexionEncoder(Jsonifier):
+    def __init__(self, encoder):
+        self._encoder = encoder
+
+    def jsonify(self, obj):
+        return self._encoder(obj)
 
 
 class HiTepRESTService:
@@ -28,7 +31,7 @@ class HiTepRESTService:
     @classmethod
     def from_config(cls, event_bus: EventBus, resource_manager: ResourceManager,
                     config_manager: ConfigurationManager):
-        config = config_manager.get_config("cltl.template")
+        config = config_manager.get_config("hitep.rest")
 
         scenario_topic = config.get("topic_scenario") if "topic_scenario" in config else None
 
@@ -41,6 +44,9 @@ class HiTepRESTService:
 
         self._knowledge_topic = knowledge_topic
         self._scenario_topic = scenario_topic
+
+        self._scenario_controller = ScenarioController(self._event_bus, self._scenario_topic, self._knowledge_topic)
+        self._gaze_controller = GazeController(self._scenario_controller, self._event_bus, self._knowledge_topic)
 
         self._topic_worker = None
         self._app = None
@@ -61,6 +67,15 @@ class HiTepRESTService:
         self._topic_worker = None
 
     @property
+    def scenario(self):
+        # TODO thread-safty
+        return self._scenario
+
+    @scenario.setter
+    def scenario(self, scenario):
+        self._scenario = scenario
+
+    @property
     def app(self):
         """
         Flask endpoint for REST interface.
@@ -68,26 +83,18 @@ class HiTepRESTService:
         if self._app:
             return self._app
 
-        app = connexion.App(__name__, resolver=RestyResolver('hitep_service.rest.controllers'))
-        app.add_api('openapi.yaml', pythonic_params=True)
-        app.app.json_encoder = JSONEncoder
+        self._app = connexion.App(__name__, resolver=MethodViewResolver('hitep_service.rest.handlers',
+                            class_arguments={
+                                "ScenarioView": {"kwargs": {"controller": self._scenario_controller}},
+                                "CurrentView": {"kwargs": {"controller": self._scenario_controller}},
+                                "StopView": {"kwargs": {"controller": self._scenario_controller}},
+                                "GazeView": {"kwargs": {"controller": self._gaze_controller}},
+                            }), jsonifier=JSONEncoder())
+        # self._app.add_api('https://raw.githubusercontent.com/hi-tep/tep-rest-api/refs/heads/main/leolani-tep-api.yaml', pythonic_params=True)
+        self._app.add_api('/Users/thomasbaier/automatic/robot/tep/leo-tep/app/py-app/leolani-tep-api.yaml', pythonic_params=True)
+        # self._app.app.json_encoder = JSONEncoder
 
-        # # Retrieve the parsed OpenAPI specification
-        # openapi_spec = api.specification
-        # for path, path_item in openapi_spec["paths"].items():
-        #     for method, operation in path_item.items():
-        #         if method in ["get", "post", "put", "delete", "patch"]:
-        #             operation_id = operation.get("operationId")
-        #             if hasattr(self, operation_id):
-        #                 view_func = getattr(self, operation_id)
-        #                 app.add_url_rule(
-        #                     path.replace("{", "<").replace("}", ">"),
-        #                     endpoint=operation_id,
-        #                     view_func=view_func,
-        #                     methods=[method.upper()]
-        #                 )
-
-        @self._app.after_request
+        @self._app.app.after_request
         def set_cache_control(response):
             response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
             response.headers['Pragma'] = 'no-cache'
@@ -96,53 +103,6 @@ class HiTepRESTService:
             return response
 
         return self._app
-
-    def submit_gaze(self, scenario_id: str, gaze_detection: Union[dict, bytes]):  # noqa: E501
-        """Submit gaze information of the user
-
-        The event marks a conscious gaze of the user on the submitted entities in the painting. # noqa: E501
-
-        :param scenario_id: The unique identifier for the interaction
-        :param gaze_detection:
-        """
-        if connexion.request.is_json:
-            gaze_detection = GazeDetection.from_dict(connexion.request.get_json())
-
-        self._event_bus.publish(Event.for_payload(self._experience_from_gaze(scenario_id, gaze_detection)))
-
-    def _experience_from_gaze(self, scenario_id, gaze):
-        gaze_id = str(uuid.uuid4())
-        source = Source(None, ["person"], self._scenario.user)
-        for entity in gaze.entities:
-            return PaintingExperience(gaze.painting, gaze_id, source, None, gaze.bounding_box,
-                         Entity(**(entity.to_dict() | {"id": None})),
-                         1.0, scenario_id, timestamp_now())
-
-    def current_scenario(self) -> Union[ScenarioContext, Response]:
-        """Retrieve the current interaction ID"""
-        if self._scenario:
-            return self._scenario
-
-        return Response(status=404)
-
-    def get_scenario(self, scenario_id: str) -> Union[ScenarioContext, Response]:
-        """Retrieve an interaction by ID"""
-        if self._scenario.id == scenario_id:
-            return self._scenario
-
-        # TODO stopped scenarios
-        return Response(status=401)
-
-    def start_scenario(self, scenario_id: str, scenario_context: ScenarioContext) -> ScenarioContext:
-        """Start a new interaction"""
-        if connexion.request.is_json:
-            scenario_context = ScenarioContext.from_dict(connexion.request.get_json())  # noqa: E501
-
-        signals = {Modality.TEXT.name: "./emissor/text.json"}
-        self.scenario = Scenario.new_instance(scenario_id, timestamp_now(), None, scenario_context, signals)
-        self._event_bus.publish(self._scenario_topic, Event.for_payload(ScenarioStarted.create(self._scenario)))
-
-        return self.scenario
 
     def _process(self, event: Event[TextSignalEvent]):
         pass

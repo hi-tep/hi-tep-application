@@ -4,11 +4,14 @@
 emissor
 cltl.emissor-data[service,client] @ git+https://github.com/leolani/cltl-emissor-data@683945eabbda5d320cf15ce25831ad7349416e27
 cltl.context[service] @ git+https://github.com/leolani/cltl-context@bac44b08818c39d0201460f5b814ef8ab1073eb2
-cltl.combot[service] @ git+https://github.com/leolani/cltl-combot@cdb0a527574c4747b96b0f679203836178d213aa
+cltl.combot[service] @ git+https://github.com/leolani/cltl-combot@43aabf42f69b8e8d1952971cba1d95231ec73cea
 cltl.chat-ui[service] @ git+https://github.com/leolani/cltl-chat-ui@705beeb8911c82c0d562d9b93e6d0d47eb008157
+cltl.brain[service] @ git+https://github.com/leolani/cltl-knowledgerepresentation@main
 
 flask
 werkzeug
-connexion[swagger-ui]
+a2wsgi
+
+connexion[swagger-ui, flask]==3.2.0
 swagger-ui-bundle
 python_dateutil

@@ -1,104 +1,85 @@
-from datetime import datetime
-from typing import Optional
+import logging
+import uuid
+from datetime import datetime, timezone
 
-import connexion
+import requests
+from cltl.combot.event.emissor import ScenarioStarted, ScenarioStopped, Agent
+from cltl.combot.infra.event import Event
+from cltl.combot.infra.time_util import timestamp_now
+from emissor.representation.ldschema import emissor_dataclass
+from emissor.representation.scenario import Modality, Scenario, ScenarioContext
 
-from openapi_server.models.scenario_context import ScenarioContext  # noqa: E501
-from openapi_server.models.stop_scenario_request import StopScenarioRequest  # noqa: E501
+import hitep.openapi_server.models as models
 
-
-current_scenario: Optional[ScenarioContext] = None
-
-
-def current_scenario():  # noqa: E501
-    """Current session metadata
-
-    Retrieve session metadata of the current session # noqa: E501
+logger = logging.getLogger(__name__)
 
 
-    :rtype: Union[ScenarioContext, Tuple[ScenarioContext, int], Tuple[ScenarioContext, int, Dict[str, str]]
-    """
-    if current_scenario:
-        return current_scenario
-
-    return None, 404
+AGENT = Agent("Leolani", "http://cltl.nl/leolani/world/leolani")
 
 
-def get_scenario(scenario_id):  # noqa: E501
-    """Session metadata by ID
-
-    Retrieve session metadata by ID # noqa: E501
-
-    :param scenario_id: The unique identifier for the session
-    :type scenario_id: str
-    :type scenario_id: str
-
-    :rtype: Union[ScenarioContext, Tuple[ScenarioContext, int], Tuple[ScenarioContext, int, Dict[str, str]]
-    """
-    if current_scenario.id == scenario_id:
-        return current_scenario
-
-    return None, 404
+@emissor_dataclass
+class HiTepContext(ScenarioContext):
+    agent: Agent
+    speaker: Agent
+    location_id: str
+    location: str
 
 
-def start_scenario(scenario_id, scenario_context):  # noqa: E501
-    """Session start
+class ScenarioController:
+    def __init__(self, event_bus, scenario_topic, knowledge_topic):
+        self._event_bus = event_bus
+        self._scenario_topic = scenario_topic
+        self._knowledge_topic = knowledge_topic
 
-    Start a new session (scenario) # noqa: E501
+        self._scenario = None
 
-    :param scenario_id: The unique identifier for the session
-    :type scenario_id: str
-    :type scenario_id: str
-    :param scenario_context: The metadata of the session. Optional properties of the submitted ScenarioContext, as for instance the start time, will be filled in automatically. The end time of the ScenarioContext must not be filled in.
-    :type scenario_context: dict | bytes
+    @property
+    def current(self):
+        return self._scenario
 
-    :rtype: Union[ScenarioContext, Tuple[ScenarioContext, int], Tuple[ScenarioContext, int, Dict[str, str]]
-    """
-    if current_scenario:
-        raise ValueError("Scenario already started")
+    def start_scenario(self, context: models.ScenarioContext):
+        scenario, capsule = self._create_scenario(context)
+        self._event_bus.publish(self._scenario_topic, Event.for_payload(ScenarioStarted.create(scenario)))
+        self._event_bus.publish(self._knowledge_topic, Event.for_payload([capsule]))
+        self._scenario = scenario
+        logger.info("Started scenario %s", scenario)
 
-    if scenario_context.id != scenario_id:
-        raise ValueError('Scenario ID does not match')
+    def stop_scenario(self, timestamp):
+        self._scenario.ruler.end = timestamp if timestamp else timestamp_now()
+        self._event_bus.publish(self._scenario_topic,
+                                Event.for_payload(ScenarioStopped.create(self._scenario)))
+        logger.info("Stopped scenario %s", self._scenario)
 
-    if connexion.request.is_json:
-        scenario_context = ScenarioContext.from_dict(connexion.request.get_json())  # noqa: E501
+    def _create_scenario(self, context: models.ScenarioContext):
+        signals = {
+            Modality.TEXT.name.lower(): "./text.json",
+            Modality.AUDIO.name.lower(): "./audio.json"
+        }
 
-    if not scenario_context.id:
-        scenario_context.id = scenario_id
+        scenario_start = int(context.start.timestamp() * 1000) if context.start else timestamp_now()
+        location = context.location if context.location else self._get_location()
+        user = Agent(context.user.split("/")[-1], context.user)
 
-    if not scenario_context.start:
-        scenario_context.start = datetime.now().isoformat()
+        scenario_context = HiTepContext(AGENT, user, str(uuid.uuid4()), location)
+        scenario = Scenario.new_instance(context.id if context.id else str(uuid.uuid4()),
+                                         scenario_start, None, scenario_context, signals)
 
-    current_scenario = scenario_context
+        capsule = {
+            "type": "context",
+            "context_id": scenario.id,
+            "date": datetime.fromtimestamp(scenario_start // 1000, timezone.utc).isoformat(),
+            "place": None,
+            "place_id": location,
+            "country": "",
+            "region": "",
+            "city": ""
+        }
 
-    return scenario_context
+        return scenario, capsule
 
+    def _get_location(self):
+        try:
+            return requests.get("https://ipinfo.io").json()
+        except:
+            return {"country": "", "region": "", "city": ""}
 
-def stop_scenario(scenario_id, stop_scenario_request=None):  # noqa: E501
-    """Session end
-
-    Stop a session # noqa: E501
-
-    :param scenario_id: The unique identifier for the session
-    :type scenario_id: str
-    :type scenario_id: str
-    :param stop_scenario_request: Optionally the end time of the session may be provided. If none is specified, the date of submission is used
-    :type stop_scenario_request: dict | bytes
-
-    :rtype: Union[ScenarioContext, Tuple[ScenarioContext, int], Tuple[ScenarioContext, int, Dict[str, str]]
-    """
-    if current_scenario.id != scenario_id:
-        raise ValueError('Scenario ID does not match current scenario')
-
-    if connexion.request.is_json:
-        stop_scenario_request = StopScenarioRequest.from_dict(connexion.request.get_json())  # noqa: E501
-
-    if stop_scenario_request.end:
-        current_scenario.end = stop_scenario_request.end
-    else:
-        current_scenario.end = datetime.now().isoformat()
-
-    stopped_context = current_scenario
-    current_scenario = None
-
-    return stopped_context
