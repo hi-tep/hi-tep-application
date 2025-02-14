@@ -200,6 +200,51 @@ paths:
           description: Successfully submitted gaze information
         '403':
           description: The submitted scenario is not active
+  /scenario/{scenarioId}/chat/response/latest:
+    get:
+      summary: Latest response
+      description: Retrieve the most recent response of the agent, maybe empty if there was no response yet. This
+        endpoint is intended for constant polling and supports caching through ETag headers. The response
+        contains only a start timestamp, as the duration of the utterance is not known.
+      tags:
+        - chat
+      parameters:
+        - $ref: '#/components/parameters/scenarioId'
+        - name: If-None-Match
+          in: header
+          required: false
+          schema:
+            type: string
+            description: If-None-Match header for cache control
+            example: W/"1234567890"
+      responses:
+        '200':
+          description: The latest response of the agent
+          headers:
+            ETag:
+              description: The ETag of the resource, used for cache validation
+              schema:
+                type: string
+                example: W/"1234567890"
+            Cache-Control:
+              schema:
+                type: string
+                description: Cache control header
+                example: "max-age=0, must-revalidate, proxy-revalidate"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Utterance'
+              example:
+                id: "62180674-2f58-467f-bc31-2c37a8dfa8c4"
+                text: "Hello world!"
+                start: 2000-01-01T00:00:00.000+00:00
+        '204':
+          description: There is no response from the agent yet in this session
+        '304':
+          description: The last response has not changed since the provided ETag or Last-Modified timestamp
+        '404':
+          description: There is no active session
 components:
   parameters:
     scenarioId:
@@ -328,3 +373,28 @@ components:
         x: 1.0
         y: 2.0
         z: 3.0
+    Utterance:
+      type: object
+      description: Utterance of an agent/user
+      required:
+        - text
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: A unique identifier of the utterance
+        text:
+          type: string
+        start:
+          type: string
+          format: date-time
+          description: Start date of the utterance
+        end:
+          type: string
+          format: date-time
+          description: End date of the utterance, if empty the length of the utterance is not known
+      example:
+        id: 62180674-2f58-467f-bc31-2c37a8dfa8c4
+        text: Hello world!
+        start: 2000-01-23T04:56:07.000+00:00
+        end: 2000-01-23T04:56:17.000+00:00

@@ -1,4 +1,5 @@
 import logging
+import os.path
 
 import connexion
 from cltl.combot.event.emissor import TextSignalEvent
@@ -9,6 +10,7 @@ from cltl.combot.infra.topic_worker import TopicWorker
 from connexion.jsonifier import Jsonifier
 from connexion.resolver import MethodViewResolver
 
+from hitep_service.rest.controllers.chat_controller import ChatController
 from hitep_service.rest.handlers.encoder import JSONEncoder
 from hitep_service.rest.controllers.gaze_controller import GazeController
 from hitep_service.rest.controllers.scenario_controller import ScenarioController
@@ -46,7 +48,8 @@ class HiTepRESTService:
         self._scenario_topic = scenario_topic
 
         self._scenario_controller = ScenarioController(self._event_bus, self._scenario_topic, self._knowledge_topic)
-        self._gaze_controller = GazeController(self._scenario_controller, self._event_bus, self._knowledge_topic)
+        self._chat_controller = ChatController(self._scenario_controller)
+        self._gaze_controller = GazeController(self._scenario_controller, self._chat_controller, self._event_bus, self._knowledge_topic)
 
         self._topic_worker = None
         self._app = None
@@ -89,9 +92,10 @@ class HiTepRESTService:
                                 "CurrentView": {"kwargs": {"controller": self._scenario_controller}},
                                 "StopView": {"kwargs": {"controller": self._scenario_controller}},
                                 "GazeView": {"kwargs": {"controller": self._gaze_controller}},
+                                "LatestView": {"kwargs": {"controller": self._chat_controller}},
                             }), jsonifier=JSONEncoder())
         # self._app.add_api('https://raw.githubusercontent.com/hi-tep/tep-rest-api/refs/heads/main/leolani-tep-api.yaml', pythonic_params=True)
-        self._app.add_api('/Users/thomasbaier/automatic/robot/tep/leo-tep/app/py-app/leolani-tep-api.yaml', pythonic_params=True)
+        self._app.add_api(os.path.join(os.getcwd(), 'leolani-tep-api.yaml'), pythonic_params=True)
         # self._app.app.json_encoder = JSONEncoder
 
         @self._app.app.after_request

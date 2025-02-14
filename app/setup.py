@@ -1,7 +1,7 @@
 import sys
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, find_namespace_packages
 
-NAME = "openapi_server"
+NAME = "hitepapp"
 VERSION = "1.0.0"
 
 # To install the library, run the following
@@ -11,11 +11,10 @@ VERSION = "1.0.0"
 # prerequisite: setuptools
 # http://pypi.python.org/pypi/setuptools
 
-REQUIRES = [
-    "connexion>=2.0.2",
-    "swagger-ui-bundle>=0.0.2",
-    "python_dateutil>=2.6.0"
-]
+REQUIRES = []
+
+print(find_namespace_packages(include=['hitep.*', 'hitep_service.*'], where='src')
+              + find_namespace_packages(include=['hitep.*', 'hitep_service.*'], where='src_gen'))
 
 setup(
     name=NAME,
@@ -25,11 +24,10 @@ setup(
     url="",
     keywords=["OpenAPI", "TEP REST API"],
     install_requires=REQUIRES,
-    packages=find_packages(),
-    package_data={'': ['openapi/openapi.yaml']},
+    package_dir={'': 'src'},
+    packages=find_namespace_packages(include=['hitep.*', 'hitep_service.*'], where='src'),
+    package_data={'': ['py-app/leolani-tep-api.yaml']},
     include_package_data=True,
-    entry_points={
-        'console_scripts': ['openapi_server=openapi_server.__main__:main']},
     long_description="""\
     REST API specification for integration of TEP components  Some useful links: - [The repository](https://github.com/hi-tep/tep-rest-api) - [Leolani](https://github.com/leolani) - [EMISSOR](https://github.com/leolani/emissor)
     """

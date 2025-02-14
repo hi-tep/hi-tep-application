@@ -1,11 +1,13 @@
 import enum
 import hashlib
 import itertools
+from threading import Timer
 
 from cltl.combot.infra.event import EventBus, Event
 from cltl.commons.discrete import UtteranceType
 
 from hitep.openapi_server.models import GazeDetection
+from hitep_service.rest.controllers.chat_controller import ChatController
 from hitep_service.rest.controllers.scenario_controller import ScenarioController
 
 
@@ -16,8 +18,10 @@ class Predicate(enum.Enum):
 
 
 class GazeController:
-    def __init__(self, scenario_controller: ScenarioController, event_bus: EventBus, knowledge_topic: str):
+    def __init__(self, scenario_controller: ScenarioController, chat_controller: ChatController,
+                 event_bus: EventBus, knowledge_topic: str):
         self._scenario_controller = scenario_controller
+        self._chat_controller = chat_controller
         self._event_bus = event_bus
         self._knowledge_topic = knowledge_topic
 
@@ -53,6 +57,13 @@ class GazeController:
             del self._active_gaze[gaze_id]
         else:
             self._active_gaze[gaze_id] = gaze
+            def set_latest(gaze_id):
+                active_gaze = self._active_gaze.get(gaze_id)
+                if gaze:
+                    text = ", ".join(ent.iri.split("/")[-1] for ent in active_gaze.entities)
+                    utterance = f"You looked at {text} in {gaze.painting.split('/')[-1]}"
+                    self._chat_controller.set_latest(utterance)
+            Timer(interval=1, function=set_latest, args=(gaze_id,)).start()
 
         return [triple.to_dict() for triple in triples]
 

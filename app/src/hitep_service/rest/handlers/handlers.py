@@ -1,11 +1,12 @@
 import logging
-from datetime import datetime
 
+from flask import request
 from flask.views import MethodView
 
-from hitep.openapi_server.models import GazeDetection
+from hitep.openapi_server.models import GazeDetection, Utterance
 from hitep.openapi_server.models.scenario_context import ScenarioContext  # noqa: E501
 from hitep.openapi_server.models.stop_scenario_request import StopScenarioRequest  # noqa: E501
+from hitep_service.rest.controllers.chat_controller import ChatController
 from hitep_service.rest.controllers.gaze_controller import GazeController
 from hitep_service.rest.controllers.scenario_controller import ScenarioController
 
@@ -73,3 +74,19 @@ class GazeView(MethodView):
     def post(self, scenario_id, body):  # noqa: E501
         gaze_detection = body if isinstance(body, GazeDetection) else GazeDetection.from_dict(body)
         self._controller.add_gaze(scenario_id, gaze_detection)
+
+
+class LatestView(MethodView):
+    def __init__(self, controller: ChatController):
+        self._controller = controller
+
+    def get(self, scenario_id): # noqa: E501
+        latest = self._controller.latest
+        if not latest:
+            return None, 404
+
+        if request.if_none_match.contains(latest.id):
+            return None, 304
+
+
+        return latest, 200, {"ETag": latest.id}

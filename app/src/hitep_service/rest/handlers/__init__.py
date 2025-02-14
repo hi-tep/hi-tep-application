@@ -1,1 +1,1 @@
-from hitep_service.rest.handlers.scenario import ScenarioView
+from hitep_service.rest.handlers.handlers import ScenarioView

@@ -56,6 +56,13 @@ class RESTScenario:
         response = requests.post(url, json=data_dict)
         logger.info("Gaze posted for scenario %s: %s [%s]", scenario_id, response, response.text)
 
+    def get_latest(self, scenario_id):
+        url = self.resolve(f"scenario/{scenario_id}/chat/response/latest")
+
+        logger.info("Get latest response for scenario %s from %s", scenario_id, url)
+        response = requests.get(url)
+        logger.info("Gaze posted for scenario %s: %s [%s]", scenario_id, response, response.text)
+
     def run(self):
         for action, args, wait in self._scenario_data:
             fct = getattr(self, action)
@@ -98,9 +105,10 @@ GAZE_DETECTIONS = [
 
 SCENARIO1 = [
     (RESTScenario.start_scenario.__name__, (SCENARIO_ID,), 1),
-    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_start()), 1),
+    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_start()), 5),
     (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_end()), 1),
     (RESTScenario.stop_scenario.__name__, (SCENARIO_ID, datetime.now()), 1),
+    (RESTScenario.get_latest.__name__, (SCENARIO_ID,), 1),
 ]
 
 def main(url):
