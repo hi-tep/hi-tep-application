@@ -30,12 +30,11 @@ class GazeController:
     def add_gaze(self, scenario_id, gaze_detection: GazeDetection):  # noqa: E501
         current = self._scenario_controller.current
         if not current or current.id != scenario_id:
-            raise ValueError(f"Scenario ID does not match, expected: {current and current.id}, actual: {scenario_id}")
+            return {"error": f"Scenario ID does not match, expected: {current and current.id}, actual: {scenario_id}"}, 400
 
-        capsules = self._create_experience(scenario_id, gaze_detection)
-
-        # pprint(capsules, indent=4)
-        self._event_bus.publish('cltl.topic.knowledge', Event.for_payload(capsules))
+        if self._knowledge_topic:
+            capsules = self._create_experience(scenario_id, gaze_detection)
+            self._event_bus.publish('cltl.topic.knowledge', Event.for_payload(capsules))
 
     def _create_experience(self, scenario_id, gaze: GazeDetection):
         user = self._scenario_controller.current.context.speaker.uri

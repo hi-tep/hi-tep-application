@@ -97,6 +97,9 @@ class BrainContainer(InfraContainer):
     def brain(self) -> LongTermMemory:
         config = self.config_manager.get_config("cltl.brain")
         brain_address = config.get("address")
+        if not brain_address:
+            return False
+
         brain_log_dir = config.get("log_dir")
         clear_brain = bool(config.get_boolean("clear_brain"))
 
@@ -108,17 +111,22 @@ class BrainContainer(InfraContainer):
     @property
     @singleton
     def brain_service(self) -> BrainService:
-        return BrainService.from_config(self.brain, self.event_bus, self.resource_manager, self.config_manager)
+        if self.brain:
+            return BrainService.from_config(self.brain, self.event_bus, self.resource_manager, self.config_manager)
+
+        return False
 
     def start(self):
         logger.info("Start Brain")
         super().start()
-        self.brain_service.start()
+        if self.brain_service:
+            self.brain_service.start()
 
     def stop(self):
         try:
-            logger.info("Stop Brain")
-            self.brain_service.stop()
+            if self.brain_service:
+                logger.info("Stop Brain")
+                self.brain_service.stop()
         finally:
             super().stop()
 

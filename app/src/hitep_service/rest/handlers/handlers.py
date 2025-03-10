@@ -7,6 +7,7 @@ from flask.views import MethodView
 from hitep.openapi_server.models import GazeDetection, Utterance
 from hitep.openapi_server.models.scenario_context import ScenarioContext  # noqa: E501
 from hitep.openapi_server.models.stop_scenario_request import StopScenarioRequest  # noqa: E501
+from hitep_service.rest.controllers.audio_controller import AudioController
 from hitep_service.rest.controllers.chat_controller import ChatController
 from hitep_service.rest.controllers.gaze_controller import GazeController
 from hitep_service.rest.controllers.position_controller import PositionController
@@ -40,19 +41,17 @@ class ScenarioView(MethodView):
     def put(self, scenario_id, body):  # noqa: E501
         # TODO thread safty
         if self._controller.current:
-            return (f"Scenario already started: {self._controller.current and self._controller.current.id}"), 409
+            return {"error": f"Scenario already started: {self._controller.current and self._controller.current.id}"}, 409
 
         scenario_context = body if isinstance(body, ScenarioContext) else ScenarioContext.from_dict(body)
 
         if scenario_context.id and scenario_context.id != scenario_id:
-            return 'Scenario ID does not match, expected: {scenario_id}, was {scenario_context.id}', 422
+            return {"error": "Scenario ID does not match, expected: {scenario_id}, was {scenario_context.id}"}, 422
 
         if not scenario_context.id:
             scenario_context.id = scenario_id
 
-        self._controller.start_scenario(scenario_context)
-
-        return scenario_context
+        return self._controller.start_scenario(scenario_context)
 
 
 class StopView(MethodView):
@@ -62,7 +61,7 @@ class StopView(MethodView):
     def post(self, scenario_id, body):  # noqa: E501
         current = self._controller.current
         if not current or current.id != scenario_id:
-            return f'Scenario ID does not match current scenario, expected: {current and current.id}, was {scenario_id}', 422
+            return {"error": f"Scenario ID does not match current scenario, expected: {current and current.id}, was {scenario_id}"}, 422
 
         stop_scenario_request = body if isinstance(body, StopScenarioRequest) else StopScenarioRequest.from_dict(body)  # noqa: E501
 
@@ -76,9 +75,8 @@ class GazeView(MethodView):
 
     def post(self, scenario_id, body):  # noqa: E501
         gaze_detection = body if isinstance(body, GazeDetection) else GazeDetection.from_dict(body)
-        self._controller.add_gaze(scenario_id, gaze_detection)
 
-        return None, 200
+        return self._controller.add_gaze(scenario_id, gaze_detection)
 
 
 class PositionchangeView(MethodView):
@@ -87,14 +85,16 @@ class PositionchangeView(MethodView):
 
     def post(self, scenario_id, body):  # noqa: E501
         position_change = body if isinstance(body, PositionChange) else PositionChange.from_dict(body)
-        self._controller.add_position_change(scenario_id, position_change=position_change)
 
-        return None, 200
+        return self._controller.add_position_change(scenario_id, position_change=position_change)
 
 
 class AudioView(MethodView):
-    def post(self, scenario_id, content_type, body):  # noqa: E501
-        return None, 200
+    def __init__(self, controller: AudioController):
+        self._controller = controller
+
+    def post(self, scenario_id, body):  # noqa: E501
+        return self._controller.add_audio(scenario_id, body)
 
 
 class LatestView(MethodView):

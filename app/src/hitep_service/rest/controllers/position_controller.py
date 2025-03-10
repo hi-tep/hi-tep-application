@@ -32,7 +32,7 @@ class PositionController:
     def add_position_change(self, scenario_id, position_change: PositionChange):  # noqa: E501
         current = self._scenario_controller.current
         if not current or current.id != scenario_id:
-            raise ValueError(f"Scenario ID does not match, expected: {current and current.id}, actual: {scenario_id}")
+            return {"error": f"Scenario ID does not match, expected: {current and current.id}, actual: {scenario_id}"}, 400
 
         capsules = self._create_experience(scenario_id, position_change)
 

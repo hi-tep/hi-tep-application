@@ -152,9 +152,11 @@ def main(url):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Hi=TEP app test')
+    # -v --url "http://ec2-34-247-73-145.eu-west-1.compute.amazonaws.com:8080/hitep/"
     parser.add_argument('--url', type=str, default="http://localhost:8000/hitep/", help='Server URL.')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help='Server URL.')
     args, _ = parser.parse_known_args()
+
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,

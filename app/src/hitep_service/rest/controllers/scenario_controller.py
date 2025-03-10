@@ -2,6 +2,7 @@ import itertools
 import logging
 import uuid
 from datetime import datetime, timezone
+from threading import Lock
 from typing import Optional
 
 import requests
@@ -34,10 +35,12 @@ class ScenarioController:
 
         self._scenario = None
         self._perception_counter = None
+        self._scenario_lock = Lock()
 
     @property
     def current(self) -> Optional[Scenario[HiTepContext]]:
-        return self._scenario
+        with self._scenario_lock:
+            return self._scenario
 
     @property
     def current_context(self) -> Optional[models.ScenarioContext]:
@@ -58,28 +61,35 @@ class ScenarioController:
         return next(self._perception_counter) if self._perception_counter else None
 
     def start_scenario(self, context: models.ScenarioContext) -> models.ScenarioContext:
-        scenario, capsule = self._create_scenario(context)
-        self._event_bus.publish(self._scenario_topic, Event.for_payload(ScenarioStarted.create(scenario)))
-        self._event_bus.publish(self._knowledge_topic, Event.for_payload([capsule]))
-        self._scenario = scenario
-        self._perception_counter = itertools.count()
+        with self._scenario_lock:
+            logger.debug("Starting scenario %s", context.id)
 
-        logger.info("Started scenario %s", scenario)
+            scenario, capsule = self._create_scenario(context)
+            self._event_bus.publish(self._scenario_topic, Event.for_payload(ScenarioStarted.create(scenario)))
+            if self._knowledge_topic:
+                self._event_bus.publish(self._knowledge_topic, Event.for_payload([capsule]))
+            self._scenario = scenario
+            self._perception_counter = itertools.count()
+
+            logger.info("Started scenario %s", scenario)
 
         return self.current_context
 
     def stop_scenario(self, timestamp: datetime) -> models.ScenarioContext:
-        scenario_end = int(timestamp.timestamp() * 1000) if timestamp else timestamp_now()
-        self._scenario.ruler.end = scenario_end
+        with self._scenario_lock:
+            logger.debug("Stopping scenario %s", self._scenario)
 
-        self._event_bus.publish(self._scenario_topic,
-                                Event.for_payload(ScenarioStopped.create(self._scenario)))
+            scenario_end = int(timestamp.timestamp() * 1000) if timestamp else timestamp_now()
+            self._scenario.ruler.end = scenario_end
 
-        stopped_context = self.current_context
-        self._scenario = None
-        self._perception_counter = None
+            self._event_bus.publish(self._scenario_topic,
+                                    Event.for_payload(ScenarioStopped.create(self._scenario)))
 
-        logger.info("Stopped scenario %s", self._scenario)
+            stopped_context = self.current_context
+            self._scenario = None
+            self._perception_counter = None
+
+            logger.info("Stopped scenario %s", self._scenario)
 
         return stopped_context
 
