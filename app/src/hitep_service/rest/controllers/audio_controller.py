@@ -4,7 +4,6 @@ import os
 
 from cltl.combot.infra.event import EventBus
 from connexion import request
-from flask import jsonify
 
 from hitep_service.rest.controllers.scenario_controller import ScenarioController
 

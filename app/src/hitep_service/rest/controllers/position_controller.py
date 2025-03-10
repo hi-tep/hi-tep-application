@@ -1,15 +1,12 @@
 import enum
-import hashlib
 import itertools
-from threading import Timer
 
 from cltl.combot.infra.event import EventBus, Event
 from cltl.commons.discrete import UtteranceType
 
-from hitep.openapi_server.models import GazeDetection
+from hitep.openapi_server.models.position_change import PositionChange
 from hitep_service.rest.controllers.chat_controller import ChatController
 from hitep_service.rest.controllers.scenario_controller import ScenarioController
-from hitep.openapi_server.models.position_change import PositionChange
 
 
 class Predicate(enum.Enum):

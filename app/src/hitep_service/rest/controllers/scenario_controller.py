@@ -2,7 +2,7 @@ import itertools
 import logging
 import uuid
 from datetime import datetime, timezone
-from threading import Lock
+from threading import Lock, RLock
 from typing import Optional
 
 import requests
@@ -35,7 +35,7 @@ class ScenarioController:
 
         self._scenario = None
         self._perception_counter = None
-        self._scenario_lock = Lock()
+        self._scenario_lock = RLock()
 
     @property
     def current(self) -> Optional[Scenario[HiTepContext]]:
@@ -84,7 +84,6 @@ class ScenarioController:
 
             self._event_bus.publish(self._scenario_topic,
                                     Event.for_payload(ScenarioStopped.create(self._scenario)))
-
             stopped_context = self.current_context
             self._scenario = None
             self._perception_counter = None
