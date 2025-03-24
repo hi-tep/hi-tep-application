@@ -3,6 +3,7 @@ import logging
 import os.path
 
 import connexion
+from cltl.backend.api.storage import AudioStorage
 from cltl.combot.event.emissor import TextSignalEvent
 from cltl.combot.infra.config import ConfigurationManager
 from cltl.combot.infra.event import Event, EventBus
@@ -14,10 +15,10 @@ from flask import request
 
 from hitep_service.rest.controllers.audio_controller import AudioController
 from hitep_service.rest.controllers.chat_controller import ChatController
-from hitep_service.rest.controllers.position_controller import PositionController
-from hitep_service.rest.handlers.encoder import JSONEncoder
 from hitep_service.rest.controllers.gaze_controller import GazeController
+from hitep_service.rest.controllers.position_controller import PositionController
 from hitep_service.rest.controllers.scenario_controller import ScenarioController
+from hitep_service.rest.handlers.encoder import JSONEncoder
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +36,24 @@ class HiTepRESTService:
     Service used to integrate the component into applications.
     """
     @classmethod
-    def from_config(cls, event_bus: EventBus, resource_manager: ResourceManager,
+    def from_config(cls, audio_storage: AudioStorage,
+                    event_bus: EventBus, resource_manager: ResourceManager,
                     config_manager: ConfigurationManager):
         config = config_manager.get_config("hitep.rest")
 
         scenario_topic = config.get("topic_scenario")
         knowledge_topic = config.get("topic_knowledge") if "topic_knowledge" in config else None
+        mic_topic = config.get("topic_mic") if "topic_mic" in config else None
+        vad_topic = config.get("topic_vad") if "topic_vad" in config else None
         request_log = config.get("request_log") if "request_log" in config else None
         audio_log = config.get("audio_log") if "audio_log" in config else None
 
-        return cls(knowledge_topic, scenario_topic, request_log, audio_log, event_bus, resource_manager)
+        return cls(knowledge_topic, scenario_topic, mic_topic, vad_topic,
+                   request_log, audio_log, audio_storage, event_bus, resource_manager)
 
-    def __init__(self, knowledge_topic: str, scenario_topic: str, request_log: str, audio_log: str,
-                 event_bus: EventBus, resource_manager: ResourceManager):
+    def __init__(self, knowledge_topic: str, scenario_topic: str, mic_topic: str, vad_topic: str,
+                 request_log: str, audio_log: str,
+                 audio_storage: AudioStorage, event_bus: EventBus, resource_manager: ResourceManager):
         self._event_bus = event_bus
         self._resource_manager = resource_manager
 
@@ -56,9 +62,12 @@ class HiTepRESTService:
 
         self._scenario_controller = ScenarioController(self._event_bus, self._scenario_topic, self._knowledge_topic)
         self._chat_controller = ChatController(self._scenario_controller)
-        self._gaze_controller = GazeController(self._scenario_controller, self._chat_controller, self._event_bus, self._knowledge_topic)
-        self._position_controller = PositionController(self._scenario_controller, self._chat_controller, self._event_bus, self._knowledge_topic)
-        self._audio_controller = AudioController(audio_log, self._scenario_controller, self._event_bus)
+        self._gaze_controller = GazeController(self._scenario_controller, self._chat_controller,
+                                               self._event_bus, self._knowledge_topic)
+        self._position_controller = PositionController(self._scenario_controller, self._chat_controller,
+                                                       self._event_bus, self._knowledge_topic)
+        self._audio_controller = AudioController(mic_topic, vad_topic, audio_log, self._scenario_controller,
+                                                 audio_storage, self._event_bus)
 
         self._topic_worker = None
         self._app = None
@@ -67,7 +76,7 @@ class HiTepRESTService:
         self._scenario = None
 
     def start(self, timeout=30):
-        self._topic_worker = TopicWorker([self._scenario_topic], self._event_bus, provides=[self._knowledge_topic],
+        self._topic_worker = TopicWorker([self._scenario_topic], self._event_bus, provides=[self._knowledge_topic, "cltl.topic.painting"],
                                          resource_manager=self._resource_manager, processor=self._process)
         self._topic_worker.start().wait()
 

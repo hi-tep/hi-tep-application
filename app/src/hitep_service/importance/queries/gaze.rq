@@ -1,0 +1,26 @@
+prefix eps: <http://cltl.nl/episodicawareness/>
+prefix leolaniContext: <http://cltl.nl/leolani/context/>
+prefix hitep: <http://github.com/hi-tep/>
+prefix hitepGaze: <http://github.com/hi-tep/gaze/>
+
+PREFIX sem: <http://semanticweb.cs.vu.nl/2009/11/sem/>
+SELECT ?gaze ?predicate ?object
+WHERE {
+  ?gaze eps:hasContext <http://cltl.nl/leolani/context/context%(context)s> .
+  ?gaze hitepGaze:hasGazeTarget <%(painting)s> .
+
+  ?gaze ?predicate ?object .
+
+  VALUES ?predicate {
+    hitepGaze:hasGazeTarget
+    sem:hasBeginTimestamp
+    sem:hasEndTimestamp
+  } .
+
+  # Only include gaze events that also looked at something else
+  FILTER EXISTS {
+    ?gaze hitepGaze:hasGazeTarget ?otherTarget .
+    FILTER(?otherTarget != <%(painting)s>)
+  }
+  FILTER(?object != <%(painting)s>) .
+}

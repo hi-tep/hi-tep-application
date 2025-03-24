@@ -105,7 +105,8 @@ class GazeDetectionData:
         self.end = self.end if self.end else datetime.now()
         return GazeDetection(position=self.position, distance=self.distance,
                              painting=self.painting, entities=self.entities,
-                             start=self.start, end=self.end)
+                             start="", end=self.end)
+                             # start=self.start, end=self.end)
 
 
 @dataclass
@@ -123,9 +124,12 @@ SCENARIO_ID = str(uuid.uuid4())
 
 GAZE_DETECTIONS = [
     GazeDetectionData(position=Model3DCoordinate(0, 0, 0), distance=1.0,
+                  entities=[],
+                  painting="http://vrmtwente.nl/painting1"),
+    GazeDetectionData(position=Model3DCoordinate(0, 0, 0), distance=1.0,
                   entities=[Entity(iri="http://vrmtwente.nl/jar1")],
                   painting="http://vrmtwente.nl/painting1"),
-    GazeDetection(position=Model3DCoordinate(0, 0, 0), distance=1.0,
+    GazeDetectionData(position=Model3DCoordinate(0, 0, 0), distance=1.0,
                   entities=[Entity(iri="http://vrmtwente.nl/jar1"), Entity(iri="http://vrmtwente.nl/king-george")],
                   painting="http://vrmtwente.nl/painting1"),
 ]
@@ -137,7 +141,9 @@ POSITIONS = [
 SCENARIO1 = [
     (RESTScenario.start_scenario.__name__, (SCENARIO_ID,), 1),
     (RESTScenario.current_scenario.__name__, (), 1),
-    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_start()), 5),
+    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_start()), 1),
+    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[1].to_start()), 50),
+    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[1].to_end()), 1),
     (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_end()), 1),
     (RESTScenario.get_latest.__name__, (SCENARIO_ID,), 1),
     (RESTScenario.position_change.__name__, (SCENARIO_ID, POSITIONS[0].to_timestamp()), 1),

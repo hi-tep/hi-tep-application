@@ -37,7 +37,7 @@ class GazeDetection(Model):
             'painting': str,
             'distance': float,
             'entities': List[Entity],
-            'start': datetime,
+            'start': str,
             'end': datetime
         }
 
@@ -178,7 +178,7 @@ class GazeDetection(Model):
         return self._start
 
     @start.setter
-    def start(self, start: datetime):
+    def start(self, start: str):
         """Sets the start of this GazeDetection.
 
         Start date of the gaze detection  # noqa: E501
@@ -189,7 +189,7 @@ class GazeDetection(Model):
         if start is None:
             raise ValueError("Invalid value for `start`, must not be `None`")  # noqa: E501
 
-        self._start = start
+        self._start = datetime.fromisoformat(start.replace('Z', '+00:00')) if start else None
 
     @property
     def end(self) -> datetime:
