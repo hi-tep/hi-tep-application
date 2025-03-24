@@ -6,7 +6,7 @@ py-app/storage
 
 .git
 
-venv
+# venv
 dist
 build
 */venv
