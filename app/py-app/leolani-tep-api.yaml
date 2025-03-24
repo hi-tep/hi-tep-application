@@ -411,9 +411,12 @@ components:
             $ref: '#/components/schemas/Entity'
           description: IRIs of the entities that are target of the user gaze
         start:
-          type: string
-          format: date-time
-          description: Start date of the gaze detection
+          anyOf:
+            - type: string
+              enum: [ "" ]
+            - type: string
+              format: date-time
+              description: Start date of the gaze detection
         end:
           type: string
           format: date-time
