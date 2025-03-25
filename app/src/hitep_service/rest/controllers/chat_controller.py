@@ -17,6 +17,6 @@ class ChatController:
     def latest(self) -> Utterance:
         return self._latest
 
-    def set_latest(self, latest: str):
-        self._latest = Utterance(id=str(uuid.uuid4()), text=latest)
+    def set_latest(self, latest: str, id: str = None):
+        self._latest = Utterance(id=id if id else str(uuid.uuid4()), text=latest)
         logger.info("Set latest response to %s", self._latest)

@@ -45,13 +45,15 @@ class HiTepRESTService:
         knowledge_topic = config.get("topic_knowledge") if "topic_knowledge" in config else None
         audio_topic = config.get("topic_audio") if "topic_audio" in config else None
         vad_topic = config.get("topic_vad") if "topic_vad" in config else None
+        output_topic = config.get("topic_output") if "topic_output" in config else None
+
         request_log = config.get("request_log") if "request_log" in config else None
         audio_log = config.get("audio_log") if "audio_log" in config else None
 
-        return cls(knowledge_topic, scenario_topic, audio_topic, vad_topic,
+        return cls(knowledge_topic, scenario_topic, audio_topic, vad_topic, output_topic,
                    request_log, audio_log, audio_storage, event_bus, resource_manager)
 
-    def __init__(self, knowledge_topic: str, scenario_topic: str, audio_topic: str, vad_topic: str,
+    def __init__(self, knowledge_topic: str, scenario_topic: str, audio_topic: str, vad_topic: str, output_topic: str,
                  request_log: str, audio_log: str,
                  audio_storage: AudioStorage, event_bus: EventBus, resource_manager: ResourceManager):
         self._event_bus = event_bus
@@ -61,6 +63,7 @@ class HiTepRESTService:
         self._scenario_topic = scenario_topic
         self._audio_topic = audio_topic
         self._vad_topic = vad_topic
+        self._output_topic = output_topic
 
         self._scenario_controller = ScenarioController(self._event_bus, self._scenario_topic, self._knowledge_topic)
         self._chat_controller = ChatController(self._scenario_controller)
@@ -78,7 +81,7 @@ class HiTepRESTService:
         self._scenario = None
 
     def start(self, timeout=30):
-        self._topic_worker = TopicWorker([self._scenario_topic], self._event_bus,
+        self._topic_worker = TopicWorker([self._scenario_topic, self._output_topic], self._event_bus,
                                          provides=[self._knowledge_topic, self._audio_topic, self._vad_topic, "cltl.topic.painting"],
                                          resource_manager=self._resource_manager, processor=self._process)
         self._topic_worker.start().wait()
@@ -148,4 +151,5 @@ class HiTepRESTService:
         return self._app
 
     def _process(self, event: Event[TextSignalEvent]):
-        pass
+        if event.metadata.topic == self._output_topic:
+            self._chat_controller.set_latest(event.payload.signal.text, event.payload.signal.id)
