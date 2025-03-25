@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /hitep
 COPY ./requirements.txt requirements.txt
 RUN pip install -r requirements.txt
-COPY ./venv/lib/python3.10/site-packages/cltl_service/chatui/static/chat-bubble ./venv/lib/python3.10/site-packages/cltl_service/chatui/static/chat-bubble
+COPY ./venv/lib/python3.10/site-packages/cltl_service/chatui/static/chat-bubble /usr/local/lib/python3.10/site-packages/cltl_service/chatui/static/chat-bubble
 
 
 FROM base as build
