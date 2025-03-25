@@ -46,7 +46,7 @@ class GazeController:
                 capsules = self._create_experience_start(scenario_id, gaze_detection)
                 self._event_bus.publish('cltl.topic.knowledge', Event.for_payload(capsules))
 
-                if not gaze_detection.entities:
+                if not self._active_painting or not gaze_detection.entities:
                     self._active_painting = gaze_detection.painting
                     painting_event = ["start", scenario_id, gaze_detection.painting, gaze_detection.start]
                     self._event_bus.publish("cltl.topic.painting", Event.for_payload(painting_event))

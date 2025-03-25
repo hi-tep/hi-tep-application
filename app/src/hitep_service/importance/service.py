@@ -127,7 +127,7 @@ class HiTepImportanceConvService:
             return
 
         if event and event.metadata.topic == self._gaze_topic and event.payload[0] == "start":
-            if self._active_painting:
+            if self._active_painting and self._active_painting != event.payload[2]:
                 self.stop_painting()
 
             self._scenario_id = event.payload[1]
@@ -138,8 +138,10 @@ class HiTepImportanceConvService:
             self._active_start = timestamp_now()
             logger.info("Painting %s turned active", self._active_painting)
         elif event and event.metadata.topic == self._gaze_topic and event.payload[0] == "end":
-            logger.info("Painting %s turned inactive", self._active_painting)
-            self.stop_painting()
+            # logger.info("Painting %s turned inactive", self._active_painting)
+            # self.stop_painting()
+            # TODO stop only when new painting or location change
+            pass
         elif not event and self._durations is None and timestamp_now() - self._active_start > self._init_time:
             self._durations = []
             self._start_conversation()
