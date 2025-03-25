@@ -154,7 +154,8 @@ class HiTepImportanceConvService:
 
     def _start_conversation(self):
         query = self._get_query(self._scenario_id, self._active_painting)
-        # print(query)
+        logger.debug("Querying gazes: %s", query.replace("\n", ""))
+
         results = self._brain._submit_query(query)
         gazes = list(self._parse_gaze_results(results))
         logger.debug("Found gazes %s", gazes)
