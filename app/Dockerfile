@@ -1,4 +1,4 @@
-# syntax = docker/dockerfile:1.2
+# syntax=docker.io/docker/dockerfile:1.7-labs
 
 FROM python:3.10 as base
 
@@ -38,7 +38,7 @@ FROM base as build
 
 WORKDIR /hitep
 
-COPY . ./
+COPY --exclude=venv . ./
 RUN pip install .
 
 WORKDIR /hitep/py-app
