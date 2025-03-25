@@ -3,7 +3,7 @@ import json
 import logging
 import time
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from urllib.parse import urljoin
 
@@ -96,13 +96,13 @@ class GazeDetectionData:
     end: Optional[datetime] = None
 
     def to_start(self):
-        self.start = self.start if self.start else datetime.now()
+        self.start = self.start if self.start else datetime.now(timezone.utc)
         return GazeDetection(position=self.position, distance=self.distance,
                              painting=self.painting, entities=self.entities,
                              start=self.start)
 
     def to_end(self):
-        self.end = self.end if self.end else datetime.now()
+        self.end = self.end if self.end else datetime.now(timezone.utc)
         return GazeDetection(position=self.position, distance=self.distance,
                              painting=self.painting, entities=self.entities,
                              start="", end=self.end)
@@ -116,7 +116,7 @@ class PositionChangeData:
     timestamp: Optional[datetime] = None
 
     def to_timestamp(self):
-        self.timestamp = self.timestamp if self.timestamp else datetime.now()
+        self.timestamp = self.timestamp if self.timestamp else datetime.now(timezone.utc)
         return PositionChange(previous=self.previous, current=self.current, timestamp=self.timestamp)
 
 
@@ -125,13 +125,14 @@ SCENARIO_ID = str(uuid.uuid4())
 GAZE_DETECTIONS = [
     GazeDetectionData(position=Model3DCoordinate(0, 0, 0), distance=1.0,
                   entities=[],
-                  painting="http://vrmtwente.nl/painting1"),
+                  painting="https://vrmtwente.nl/painting1"),
     GazeDetectionData(position=Model3DCoordinate(0, 0, 0), distance=1.0,
-                  entities=[Entity(iri="http://vrmtwente.nl/jar1")],
-                  painting="http://vrmtwente.nl/painting1"),
+                  entities=[Entity(label="King George", iri="http://vrmtwente.nl/king-george")],
+                  painting="https://vrmtwente.nl/painting1"),
     GazeDetectionData(position=Model3DCoordinate(0, 0, 0), distance=1.0,
-                  entities=[Entity(iri="http://vrmtwente.nl/jar1"), Entity(iri="http://vrmtwente.nl/king-george")],
-                  painting="http://vrmtwente.nl/painting1"),
+                  entities=[Entity(label="The Jar", iri="http://vrmtwente.nl/jar1"),
+                            Entity(label="King George", iri="http://vrmtwente.nl/king-george")],
+                  painting="https://vrmtwente.nl/painting1"),
 ]
 
 POSITIONS = [
@@ -142,13 +143,15 @@ SCENARIO1 = [
     (RESTScenario.start_scenario.__name__, (SCENARIO_ID,), 1),
     (RESTScenario.current_scenario.__name__, (), 1),
     (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_start()), 1),
-    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[1].to_start()), 50),
+    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[1].to_start()), 5),
+    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[2].to_start()), 15),
+    (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[2].to_end()), 5),
     (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[1].to_end()), 1),
     (RESTScenario.gaze_detection.__name__, (SCENARIO_ID, GAZE_DETECTIONS[0].to_end()), 1),
     (RESTScenario.get_latest.__name__, (SCENARIO_ID,), 1),
     (RESTScenario.position_change.__name__, (SCENARIO_ID, POSITIONS[0].to_timestamp()), 1),
     (RESTScenario.get_latest.__name__, (SCENARIO_ID,), 1),
-    (RESTScenario.stop_scenario.__name__, (SCENARIO_ID, datetime.now()), 1),
+    (RESTScenario.stop_scenario.__name__, (SCENARIO_ID, datetime.now(timezone.utc)), 1),
 ]
 
 def main(url):
@@ -159,6 +162,7 @@ def main(url):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Hi=TEP app test')
     # -v --url "http://ec2-34-247-73-145.eu-west-1.compute.amazonaws.com:8080/hitep/"
+    # -v --url "http://54.229.253.69:8080/hitep/"
     parser.add_argument('--url', type=str, default="http://localhost:8000/hitep/", help='Server URL.')
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help='Server URL.')
     args, _ = parser.parse_known_args()
