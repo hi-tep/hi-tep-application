@@ -100,7 +100,7 @@ class GazeController:
         if entity:
             # TODO Fix for demo, VRM doesn't transfer URIs
             painting_label = gaze.painting.split("/")[-1]
-            entity_iri = (entity.iri if entity.iri.startswith("http://")
+            entity_iri = (entity.iri if entity.iri.startswith("http://") or entity.iri.startswith("https://")
                           else f"http://vrmtwente.nl/{painting_label}/{entity.iri}")
             triples.append(Triple(scenario_id, detection, gaze.start, gaze_event, Ontology.TARGET.value, entity_iri))
 
@@ -168,7 +168,7 @@ class Triple:
         }
 
     def _get_type(self, entity: str):
-        return ['class'] if entity.startswith("http://") else []
+        return ['class'] if entity.startswith("http://") or entity.startswith("https://") else []
 
     def _to_label(self, uri):
         return uri.split("#")[-1] if "#" in uri else uri.split("/")[-1]
