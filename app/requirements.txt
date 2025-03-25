@@ -1,5 +1,4 @@
 # Install the modules as defined in setup.py to make them available on the PYTHONPATH
-.
 
 emissor
 cltl.emissor-data[service,client] @ git+https://github.com/leolani/cltl-emissor-data@683945eabbda5d320cf15ce25831ad7349416e27

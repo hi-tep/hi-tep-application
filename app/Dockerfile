@@ -29,9 +29,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean
 
 WORKDIR /hitep
-COPY . ./
+COPY ./requirements.txt requirements.txt
 RUN pip install -r requirements.txt
 COPY ./venv/lib/python3.10/site-packages/cltl_service/chatui/static/chat-bubble ./venv/lib/python3.10/site-packages/cltl_service/chatui/static/chat-bubble
+
+
+FROM base as build
+
+WORKDIR /hitep
+
+COPY . ./
+RUN pip install .
 
 WORKDIR /hitep/py-app
 

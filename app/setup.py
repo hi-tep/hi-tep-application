@@ -26,7 +26,7 @@ setup(
     install_requires=REQUIRES,
     package_dir={'': 'src'},
     packages=find_namespace_packages(include=['hitep.*', 'hitep_service.*'], where='src'),
-    package_data={'': ['py-app/leolani-tep-api.yaml']},
+    package_data={'': ['py-app/leolani-tep-api.yaml'], 'hitep_service.importance': ['queries/*', 'queries/**/*']},
     include_package_data=True,
     long_description="""\
     REST API specification for integration of TEP components  Some useful links: - [The repository](https://github.com/hi-tep/tep-rest-api) - [Leolani](https://github.com/leolani) - [EMISSOR](https://github.com/leolani/emissor)
