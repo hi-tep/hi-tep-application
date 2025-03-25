@@ -43,6 +43,18 @@ def read_query(query_filename):
     return (resources / f"{query_filename}.rq").read_text()
 
 
+class ConversationState(enum.Enum):
+    START = "Why are you interested in %s?"
+    END = "Why did %s not catch your interest?"
+    FINISHED = "OK."
+
+# class ConversationState(enum.Enum):
+#     def __init__(self, utterance, target):
+#         self._utterance = utterance
+#         self._target = target
+#         self._turn = True
+
+
 class HiTepImportanceConvService:
     """
     Service used to integrate the component into applications.
@@ -78,7 +90,9 @@ class HiTepImportanceConvService:
         self._scenario_id = None
         self._active_painting = None
         self._active_start = None
-        self._active_targets = None
+        self._durations = None
+
+        self._conv_state = None
 
         self._init_time = init_time
 
@@ -126,14 +140,14 @@ class HiTepImportanceConvService:
         elif event and event.metadata.topic == self._gaze_topic and event.payload[0] == "end":
             logger.info("Painting %s turned inactive", self._active_painting)
             self.stop_painting()
-        elif not event and self._active_targets is None and timestamp_now() - self._active_start > self._init_time:
-            self._active_targets = []
+        elif not event and self._durations is None and timestamp_now() - self._active_start > self._init_time:
+            self._durations = []
             self._start_conversation()
             logger.info("Started conversation on painting %s", self._active_painting)
         elif event and event.metadata.topic == self._text_in_topic:
             self._handle_utterance(event.payload.signal)
             logger.debug("Handled utterance %s for painting %s", event.payload.signal.text, self._active_painting)
-        else:
+        elif event:
             logger.warning("Unhandled event %s", event)
 
     def _start_conversation(self):
@@ -148,17 +162,18 @@ class HiTepImportanceConvService:
             logger.debug("Reset conversation initialization %s", results)
             return
 
-        durations = self._get_gaze_durations(gazes)
-        most_important = durations.pop()
+        self._durations = self._get_gaze_durations(gazes)
+        most_important = self._durations[-1]
         gaze_target = most_important["target"].split("/")[-1]
 
-        logger.debug("Found durations %s with most viewd %s", durations, most_important)
+        logger.debug("Found durations %s with most viewd %s", self._durations, most_important)
 
-        utterance = f"Why are you looking at {gaze_target}"
+        self._conv_state = ConversationState.START
+        utterance = ConversationState.START.value % gaze_target
         signal_id = self._send_response(utterance)
         self._utterance_capsule(signal_id, self._get_author(), most_important["target"], utterance)
 
-        self._active_targets = ([durations[0]] if durations else [], most_important["target"])
+        # self._active_targets = ([durations[0]] if durations else [], most_important["target"])
 
     def _parse_gaze_results(self, sparql_results):
         # Initialize a dict to collect data per gaze IRI
@@ -222,19 +237,30 @@ class HiTepImportanceConvService:
         return sorted(durations.values(), key=lambda x: x['total'])
 
     def _handle_utterance(self, text_signal):
-        if self._active_targets and self._active_targets[0]:
-            targets, gaze_iri = self._active_targets
-            target = targets.pop()
+        if self._conv_state == ConversationState.START:
+            # Store the user's reply
+            target_ = self._durations[-1]["target"]
+            self._utterance_capsule(text_signal.id, self._get_author(), target_, text_signal.text)
 
-            self._utterance_capsule(text_signal.id, self._get_author(), gaze_iri, text_signal.text)
+            # Follow up
+            if self._durations and len(self._durations) > 1:
+                self._conv_state = ConversationState.END
+                target_ = self._durations[0]["target"]
+                utterance = self._conv_state.value % target_.split("/")[-1]
 
-            gaze_target = target["target"].split("/")[-1]
-            utterance = f"Why did {gaze_target} not catch your attention?"
-            self._send_response(utterance)
-            self._utterance_capsule(text_signal.id, self._get_author(), gaze_iri, utterance)
+                signal_id = self._send_response(utterance)
+                self._utterance_capsule(signal_id, self._get_author(), target_, utterance)
+            else:
+                self._conv_state = ConversationState.FINISHED
+        else:
+            self._conv_state = ConversationState.FINISHED
+
+        if self._conv_state == ConversationState.FINISHED:
+                utterance = self._conv_state.value
+                self._send_response(utterance)
 
     def stop_painting(self):
-        self._active_targets = None
+        self._durations = None
         self._active_painting = None
         self._active_start = None
 
@@ -252,20 +278,19 @@ class HiTepImportanceConvService:
 
         return payload.signal.id
 
-    def _utterance_capsule(self, signal_id, author, gaze_iri, text):
+    def _utterance_capsule(self, signal_id, author, target, text):
         capsule = {"chat": self._scenario_id,
                    "turn": signal_id,
                    "author": author,
                    "utterance": text,
-                   "utterance_type": UtteranceType.STATEMENT,
+                   "utterance_type": UtteranceType.TEXT_MENTION,
                    "position": "0-" + str(len(text)),
-                   "subject": {"label": "", "type": [], "uri": gaze_iri},
-                   "predicate": {"label": "", "type": [], "uri": Ontology.CAUSE.value},
-                   "object": {"label": "", "type": [], "uri": f"{Ontology.TALK.value}chat{self._scenario_id}_utterance{signal_id}"},
-                   "perspective": {'certainty': 1.0, 'polarity': 1.0, 'sentiment': 0.0},
+                   "item": {'label': '', 'type': [], 'id': None, 'uri': target},
+                   "perspective": {'certainty': 1.0},
                    "context_id": self._scenario_id,
                    "timestamp": timestamp_now()
                    }
+
         self._event_bus.publish(self._knowledge_topic, Event.for_payload([capsule]))
 
     def _get_author(self):
@@ -274,3 +299,8 @@ class HiTepImportanceConvService:
             "type": ["person"],
             "uri": Ontology.LEOLANI.value
         }
+
+
+# "item": {'label': 'bonsai tree', 'type': ['plant'], 'id': 1,
+#                              'uri': "http://cltl.nl/leolani/world/carl-1"},
+#                     "perspective": {"certainty": 84}

@@ -76,6 +76,15 @@ class GazeController:
         return [triple.to_dict() for triple in triples]
 
     def _create_triples_start(self, scenario_id, user, entity, gaze: GazeDetection):
+        gaze_key = hashlib.md5(f"{scenario_id}%{gaze.painting}%{entity}".encode("utf")).hexdigest()
+
+        # Gaze on entity already started
+        if gaze_key in self._active_gaze:
+            det, ev, cnt = self._active_gaze[gaze_key]
+            self._active_gaze[gaze_key] = (det, ev, cnt + 1)
+
+            return []
+
         detection = self._scenario_controller.next_counter()
         gaze_event = f"{Ontology.GAZE.value}/{uuid.uuid4()}"
 
@@ -91,8 +100,7 @@ class GazeController:
         if entity:
             triples.append(Triple(scenario_id, detection, gaze.start, gaze_event, Ontology.TARGET.value, entity.iri))
 
-        gaze_key = hashlib.md5(f"{scenario_id}%{gaze.painting}%{entity}".encode("utf")).hexdigest()
-        self._active_gaze[gaze_key] = (detection, gaze_event)
+        self._active_gaze[gaze_key] = (detection, gaze_event, 1)
 
         return triples
 
@@ -103,10 +111,15 @@ class GazeController:
 
     def _create_triples_end(self, scenario_id, entity, gaze: GazeDetection):
         gaze_key = hashlib.md5(f"{scenario_id}%{gaze.painting}%{entity}".encode("utf")).hexdigest()
-        detection, gaze_event = self._active_gaze[gaze_key]
-        del self._active_gaze[gaze_key]
-
-        triples = [Triple(scenario_id, detection, gaze.start, gaze_event, Ontology.END.value, gaze.end.isoformat(timespec='milliseconds'))]
+        detection, gaze_event, cnt = self._active_gaze[gaze_key]
+        if cnt == 1:
+            del self._active_gaze[gaze_key]
+            triples = [Triple(scenario_id, detection, gaze.start, gaze_event, Ontology.END.value,
+                              gaze.end.isoformat(timespec='milliseconds'))]
+        else:
+            det, ev, cnt = self._active_gaze[gaze_key]
+            self._active_gaze[gaze_key] = (det, ev, cnt - 1)
+            triples = []
 
         return triples
 
