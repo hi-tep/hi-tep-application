@@ -12,7 +12,7 @@ from hitep_service.rest.controllers.scenario_controller import ScenarioControlle
 
 class Ontology(enum.Enum):
     TYPE = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type"
-    EVENT = "http://semanticweb.cs.vu.nl/2009/11/sem/event"
+    EVENT = "http://semanticweb.cs.vu.nl/2009/11/sem/Event"
     SUB_EVENT = "http://semanticweb.cs.vu.nl/2009/11/sem/subEventOf"
     CONTEXT = "http://cltl.nl/leolani/context/context"
     HAS_CONTEXT = "http://cltl.nl/episodicawareness/hasContext"
@@ -42,17 +42,7 @@ class GazeController:
             return {"error": f"Scenario ID does not match, expected: {current and current.id}, actual: {scenario_id}"}, 400
 
         if self._knowledge_topic:
-            if gaze_detection.end:
-                capsules = self._create_experience_end(scenario_id, gaze_detection)
-                self._event_bus.publish('cltl.topic.knowledge', Event.for_payload(capsules))
-
-                if not gaze_detection.entities:
-                    self._active_painting = None
-                    painting_event = ["end", scenario_id, gaze_detection.painting, gaze_detection.end]
-                    self._event_bus.publish("cltl.topic.painting", Event.for_payload(painting_event))
-
-                print("XXX g", "end", gaze_detection.entities)
-            elif gaze_detection.start:
+            if gaze_detection.start:
                 capsules = self._create_experience_start(scenario_id, gaze_detection)
                 self._event_bus.publish('cltl.topic.knowledge', Event.for_payload(capsules))
 
@@ -61,7 +51,17 @@ class GazeController:
                     painting_event = ["start", scenario_id, gaze_detection.painting, gaze_detection.start]
                     self._event_bus.publish("cltl.topic.painting", Event.for_payload(painting_event))
 
-                print("XXX g", "start", gaze_detection.entities)
+                logger.debug("Detected gaze start on %s", gaze_detection.entities)
+            elif gaze_detection.end:
+                capsules = self._create_experience_end(scenario_id, gaze_detection)
+                self._event_bus.publish('cltl.topic.knowledge', Event.for_payload(capsules))
+
+                if not gaze_detection.entities:
+                    self._active_painting = None
+                    painting_event = ["end", scenario_id, gaze_detection.painting, gaze_detection.end]
+                    self._event_bus.publish("cltl.topic.painting", Event.for_payload(painting_event))
+
+                logger.debug("Detected gaze end on %s", gaze_detection.entities)
             else:
                 logger.warning("Received gaze event without start and end date")
 
@@ -76,7 +76,7 @@ class GazeController:
         return [triple.to_dict() for triple in triples]
 
     def _create_triples_start(self, scenario_id, user, entity, gaze: GazeDetection):
-        gaze_key = hashlib.md5(f"{scenario_id}%{gaze.painting}%{entity}".encode("utf")).hexdigest()
+        gaze_key = self._to_gaze_key(entity, gaze, scenario_id)
 
         # Gaze on entity already started
         if gaze_key in self._active_gaze:
@@ -98,7 +98,11 @@ class GazeController:
                    ]
 
         if entity:
-            triples.append(Triple(scenario_id, detection, gaze.start, gaze_event, Ontology.TARGET.value, entity.iri))
+            # TODO Fix for demo, VRM doesn't transfer URIs
+            painting_label = gaze.painting.split("/")[-1]
+            entity_iri = (entity.iri if entity.iri.startswith("http://")
+                          else f"http://vrmtwente.nl/{painting_label}/{entity.iri}")
+            triples.append(Triple(scenario_id, detection, gaze.start, gaze_event, Ontology.TARGET.value, entity_iri))
 
         self._active_gaze[gaze_key] = (detection, gaze_event, 1)
 
@@ -110,8 +114,13 @@ class GazeController:
         return [triple.to_dict() for triple in triples]
 
     def _create_triples_end(self, scenario_id, entity, gaze: GazeDetection):
-        gaze_key = hashlib.md5(f"{scenario_id}%{gaze.painting}%{entity}".encode("utf")).hexdigest()
-        detection, gaze_event, cnt = self._active_gaze[gaze_key]
+        try:
+            gaze_key = self._to_gaze_key(entity, gaze, scenario_id)
+            detection, gaze_event, cnt = self._active_gaze[gaze_key]
+        except KeyError:
+            logger.warning("No active gaze found for %s", gaze)
+            return
+
         if cnt == 1:
             del self._active_gaze[gaze_key]
             triples = [Triple(scenario_id, detection, gaze.start, gaze_event, Ontology.END.value,
@@ -123,43 +132,11 @@ class GazeController:
 
         return triples
 
+    def _to_gaze_key(self, entity, gaze, scenario_id: str):
+        entity_str = ''.join(str(entity).split()) if entity else ''
+        painting_str = ''.join(str(gaze.painting).split())
 
-# class HirarchicGazeRegistry:
-#     def __init__(self):
-#         self._gaze = dict()
-#         self._parents = []
-#
-#     def active(self) -> str:
-#         """Get the id of the active gaze event."""
-#         active_parents = self.get_parent_events()
-#
-#         return active_parents[-1] if active_parents else None
-#
-#     def start(self, scenario_id: str, gaze: GazeDetection) -> Tuple[str, List[str]]:
-#         """Start a new gaze event. Return the new Id (and parents?)
-#         """
-#         active_parents = self.get_parent_events()
-#         parent = next(filter(self._includes_filter(gaze.entities), active_parents), None)
-#         parents = active_parents[:indexOf(parent, active_parents)] if parent else []
-#
-#         gaze_id = hashlib.md5(f"{scenario_id}%{gaze.painting}%{gaze.entities}".encode("utf")).hexdigest()
-#         self._gaze[gaze_id] = gaze
-#
-#         return gaze_id, parents
-#
-#     def end(self, scenario_id: str, gaze: GazeDetection):
-#         """End the gaze event, Return the parent(s)"""
-#         active_parents = self.get_parent_events()
-#         gaze_id = hashlib.md5(f"{scenario_id}%{gaze.painting}%{gaze.entities}".encode("utf")).hexdigest()
-#         del self._gaze[gaze_id]
-#         self._parents.pop()
-#
-#     def get_parent_events(self, event_id) -> List[str]:
-#         """Return the parent events"""
-#         return self._parents[:-1]
-#
-#     def _includes_filter(self, entities):
-#         return lambda gaze: (gaze.entities | entities) == entities
+        return hashlib.md5(f"{scenario_id.strip()}%{painting_str}%{entity_str}".encode("utf-8")).hexdigest()
 
 
 class Triple:
@@ -181,18 +158,17 @@ class Triple:
             "utterance_type": UtteranceType.EXPERIENCE_TRIPLE,
             "region": [0, 0, 0, 0],
             "item": None,
-            "subject": {'label': self._to_label(self.subject), 'type': [], 'uri': self.subject},
+            "subject": {'label': self._to_label(self.subject), 'type': self._get_type(self.subject), 'uri': self.subject},
             "predicate": {"label": self._to_label(self.predicate), "uri": self.predicate},
-            "object": ({'label': self._to_label(self.object), 'type': [], 'uri': self.object}),
+            "object": ({'label': self._to_label(self.object), 'type': self._get_type(self.object), 'uri': self.object}),
             "perspective": {"certainty": 1, "polarity": 1, "sentiment": 0},
             'confidence': 1.00,
             "timestamp": self.date,
             "context_id": self.scenario_id
         }
 
+    def _get_type(self, entity: str):
+        return ['class'] if entity.startswith("http://") else []
+
     def _to_label(self, uri):
-        if "http" not in uri:
-            return uri
-        else:
-            return ""
-        # return uri.split("#")[-1] if "#" in uri else uri.split("/")[-1]
+        return uri.split("#")[-1] if "#" in uri else uri.split("/")[-1]

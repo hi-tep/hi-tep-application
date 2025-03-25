@@ -135,7 +135,7 @@ class HiTepRESTService:
                     body = "GET"
                 else:
                     body = (request.get_data().decode('utf-8')
-                            if "Content-Type" in headers and headers["Content-Type"] == "application/json"
+                            if "Content-Type" in headers and "application/json" in headers["Content-Type"]
                             else headers["Content-Type"] if "Content-Type" in headers else "Unknown Content-Type")
                 path = request.path
 
