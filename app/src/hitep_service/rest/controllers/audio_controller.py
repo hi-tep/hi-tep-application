@@ -14,6 +14,7 @@ from cltl_service.backend.schema import BackendAudioSignalStarted
 from cltl_service.vad.schema import VadAnnotation, VadMentionEvent
 from connexion import request
 from emissor.representation.scenario import AudioSignal
+from emissor.representation.container import Index
 from scipy.io import wavfile
 
 from hitep_service.rest.controllers.scenario_controller import ScenarioController
@@ -88,16 +89,17 @@ class AudioController:
         event = Event.for_payload(stopped)
         self._event_bus.publish(self._mic_topic, event)
 
-        vad_event = self._create_payload(signal.ruler)
+        vad_event = self._create_payload(signal.id, len(audio_data))
         self._event_bus.publish(self._vad_topic, Event.for_payload(vad_event))
 
-    def _create_payload(self, segment):
+    def _create_payload(self, signal_id, length):
+        segment = Index.from_range(signal_id, 0, length)
         annotation = VadAnnotation.for_activation(1.0, self.__class__.__name__)
 
         return VadMentionEvent.create(segment, annotation)
 
     def _create_audio_signal(self, audio_id: str, parameters: AudioParameters,
                                  start: int = None, stop: int = None, length: int = None) -> AudioSignal:
-            return AudioSignal.for_scenario(self._scenario_controller.current, start, stop,
+            return AudioSignal.for_scenario(self._scenario_controller.current.id, start, stop,
                                             f"cltl-storage:audio/{audio_id}",
                                             length, parameters.channels, signal_id=audio_id)

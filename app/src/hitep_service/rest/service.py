@@ -43,15 +43,15 @@ class HiTepRESTService:
 
         scenario_topic = config.get("topic_scenario")
         knowledge_topic = config.get("topic_knowledge") if "topic_knowledge" in config else None
-        mic_topic = config.get("topic_mic") if "topic_mic" in config else None
+        audio_topic = config.get("topic_audio") if "topic_audio" in config else None
         vad_topic = config.get("topic_vad") if "topic_vad" in config else None
         request_log = config.get("request_log") if "request_log" in config else None
         audio_log = config.get("audio_log") if "audio_log" in config else None
 
-        return cls(knowledge_topic, scenario_topic, mic_topic, vad_topic,
+        return cls(knowledge_topic, scenario_topic, audio_topic, vad_topic,
                    request_log, audio_log, audio_storage, event_bus, resource_manager)
 
-    def __init__(self, knowledge_topic: str, scenario_topic: str, mic_topic: str, vad_topic: str,
+    def __init__(self, knowledge_topic: str, scenario_topic: str, audio_topic: str, vad_topic: str,
                  request_log: str, audio_log: str,
                  audio_storage: AudioStorage, event_bus: EventBus, resource_manager: ResourceManager):
         self._event_bus = event_bus
@@ -59,6 +59,8 @@ class HiTepRESTService:
 
         self._knowledge_topic = knowledge_topic
         self._scenario_topic = scenario_topic
+        self._audio_topic = audio_topic
+        self._vad_topic = vad_topic
 
         self._scenario_controller = ScenarioController(self._event_bus, self._scenario_topic, self._knowledge_topic)
         self._chat_controller = ChatController(self._scenario_controller)
@@ -66,7 +68,7 @@ class HiTepRESTService:
                                                self._event_bus, self._knowledge_topic)
         self._position_controller = PositionController(self._scenario_controller, self._chat_controller,
                                                        self._event_bus, self._knowledge_topic)
-        self._audio_controller = AudioController(mic_topic, vad_topic, audio_log, self._scenario_controller,
+        self._audio_controller = AudioController(audio_topic, vad_topic, audio_log, self._scenario_controller,
                                                  audio_storage, self._event_bus)
 
         self._topic_worker = None
@@ -76,7 +78,8 @@ class HiTepRESTService:
         self._scenario = None
 
     def start(self, timeout=30):
-        self._topic_worker = TopicWorker([self._scenario_topic], self._event_bus, provides=[self._knowledge_topic, "cltl.topic.painting"],
+        self._topic_worker = TopicWorker([self._scenario_topic], self._event_bus,
+                                         provides=[self._knowledge_topic, self._audio_topic, self._vad_topic, "cltl.topic.painting"],
                                          resource_manager=self._resource_manager, processor=self._process)
         self._topic_worker.start().wait()
 
