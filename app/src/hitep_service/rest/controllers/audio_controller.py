@@ -21,6 +21,9 @@ from hitep_service.rest.controllers.scenario_controller import ScenarioControlle
 logger = logging.getLogger(__name__)
 
 
+# Test with
+# curl -X POST "http://localhost:8000/hitep/scenario/c7bd63ce-a77a-49fb-9d33-5eaffad89ef5/audio" -H "Content-Type: audio/wav" -v --data-binary @sample.wav
+
 class AudioController:
     def __init__(self, mic_topic: str, vad_topic: str,
                  storage_path: str, scenario_controller: ScenarioController,
@@ -60,6 +63,8 @@ class AudioController:
 
         if self._audio_storage:
             sampling_rate, audio_data = wavfile.read(io.BytesIO(body))
+            # Transpose to ensure the new axis is in the last position
+            audio_data = np.atleast_2d(audio_data.T).T
             audio_id = str(uuid.uuid4())
             self._audio_storage.store(audio_id, audio_data, sampling_rate)
 
