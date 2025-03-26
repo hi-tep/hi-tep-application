@@ -30,6 +30,7 @@ from flask import Flask
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.serving import run_simple
 
+from hitep.emissor.storage import HiTepScenarioStorage
 from hitep_service.importance.service import HiTepImportanceConvService
 from hitep_service.rest.service import HiTepRESTService
 
@@ -46,7 +47,9 @@ class EmissorStorageContainer(InfraContainer):
     @property
     @singleton
     def emissor_storage(self) -> EmissorDataStorage:
-        return EmissorDataFileStorage.from_config(self.config_manager)
+        config = self.config_manager.get_config("cltl.emissor-data")
+
+        return EmissorDataFileStorage.from_config(self.config_manager, HiTepScenarioStorage(config.get("path")))
 
     @property
     @singleton

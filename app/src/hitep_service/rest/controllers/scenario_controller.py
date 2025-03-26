@@ -95,7 +95,8 @@ class ScenarioController:
     def _create_scenario(self, context: models.ScenarioContext):
         signals = {
             Modality.TEXT.name.lower(): "./text.json",
-            Modality.AUDIO.name.lower(): "./audio.json"
+            Modality.AUDIO.name.lower(): "./audio.json",
+            Modality.VIDEO.name.lower(): "./detection.json"
         }
 
         scenario_start = int(context.start.timestamp() * 1000) if context.start else timestamp_now()

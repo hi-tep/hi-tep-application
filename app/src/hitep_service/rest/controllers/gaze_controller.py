@@ -2,9 +2,12 @@ import enum
 import hashlib
 import uuid
 
+from cltl.combot.event.emissor import SignalEvent
 from cltl.combot.infra.event import EventBus, Event
 from cltl.commons.discrete import UtteranceType
+from emissor.representation.scenario import Modality
 
+from hitep.emissor.api import GazeStartSignal, GazeEndSignal
 from hitep.openapi_server.models import GazeDetection
 from hitep_service.rest.controllers.chat_controller import ChatController
 from hitep_service.rest.controllers.scenario_controller import ScenarioController, logger
@@ -27,11 +30,12 @@ class Ontology(enum.Enum):
 
 class GazeController:
     def __init__(self, scenario_controller: ScenarioController, chat_controller: ChatController,
-                 event_bus: EventBus, knowledge_topic: str):
+                 event_bus: EventBus, knowledge_topic: str, detection_topic: str):
         self._scenario_controller = scenario_controller
         self._chat_controller = chat_controller
         self._event_bus = event_bus
         self._knowledge_topic = knowledge_topic
+        self._detection_topic = detection_topic
 
         self._active_gaze = {}
         self._active_painting = None
@@ -41,6 +45,7 @@ class GazeController:
         if not current or current.id != scenario_id:
             return {"error": f"Scenario ID does not match, expected: {current and current.id}, actual: {scenario_id}"}, 400
 
+        # TODO move to its own service that picks up signals
         if self._knowledge_topic:
             if gaze_detection.start:
                 capsules = self._create_experience_start(scenario_id, gaze_detection)
@@ -62,6 +67,24 @@ class GazeController:
                     self._event_bus.publish("cltl.topic.painting", Event.for_payload(painting_event))
 
                 logger.debug("Detected gaze end on %s", gaze_detection.entities)
+            else:
+                logger.warning("Received gaze event without start and end date")
+
+        if self._detection_topic:
+            if gaze_detection.start:
+                signal = GazeStartSignal.for_scenario(scenario_id, gaze_detection)
+                started = SignalEvent(GazeStartSignal.__class__.__name__, Modality.VIDEO, signal)
+                event = Event.for_payload(started)
+                self._event_bus.publish(self._detection_topic, event)
+
+                logger.debug("Detected gaze start signal on %s", gaze_detection.entities)
+            elif gaze_detection.end:
+                signal = GazeEndSignal.for_scenario(scenario_id, gaze_detection)
+                stopped = SignalEvent(GazeEndSignal.__class__.__name__, Modality.VIDEO, signal)
+                event = Event.for_payload(stopped)
+                self._event_bus.publish(self._detection_topic, event)
+
+                logger.debug("Detected gaze end signal on %s", gaze_detection.entities)
             else:
                 logger.warning("Received gaze event without start and end date")
 

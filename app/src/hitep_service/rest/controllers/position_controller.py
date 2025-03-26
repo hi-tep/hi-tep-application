@@ -16,11 +16,12 @@ class Predicate(enum.Enum):
 
 class PositionController:
     def __init__(self, scenario_controller: ScenarioController, chat_controller: ChatController,
-                 event_bus: EventBus, knowledge_topic: str):
+                 event_bus: EventBus, knowledge_topic: str, detection_topic: str):
         self._scenario_controller = scenario_controller
         self._chat_controller = chat_controller
         self._event_bus = event_bus
         self._knowledge_topic = knowledge_topic
+        self._detection_topic = detection_topic
 
         self._counter = None
 
@@ -31,10 +32,16 @@ class PositionController:
         if not current or current.id != scenario_id:
             return {"error": f"Scenario ID does not match, expected: {current and current.id}, actual: {scenario_id}"}, 400
 
+        # TODO move to its own service that picks up signals
         capsules = self._create_experience(scenario_id, position_change)
 
         # pprint(capsules, indent=4)
         self._event_bus.publish('cltl.topic.knowledge', Event.for_payload(capsules))
+
+        # TODO add position change signals
+        # started = PositionSignal.for_scenario(scenario_id, position_change)
+        # event = Event.for_payload(SignalEvent(PositionSignal.__class__.__name__, Modality.VIDEO, started))
+        # self._event_bus.publish(self._detection_topic, event)
 
     def _create_experience(self, scenario_id, position_change: PositionChange):
         user = self._scenario_controller.current.context.speaker.uri
